@@ -232,9 +232,7 @@ static void unify(type::mono a, type::mono b) {
 
 	// TODO we should make sure the term is the representative and not
 	// the variable
-	
-	
-	
+
   } else {
 	throw std::runtime_error("types do not match lol");
   }
@@ -485,93 +483,7 @@ struct hindley_milner {
 };
 
 
-static type::mono infer(context& c, const ast::expr& e) {
-  using namespace ast;
-  
-  switch(e.type()) {
 
-	// var
-  case expr::type< var >(): {
-	auto& v = e.as<var>();
-	auto it = c.find(v);
-
-	if(it == c.end()) {
-	  std::string msg = "undeclared variable: ";
-	  throw std::logic_error(msg + v.name);
-	}
-	
-	return inst( it->second );
-  } break;
-
-	// app
-  case expr::type< call >(): {
-	auto& self = e.as<call>();
-
-	type::mono func = infer(c, *self.func );
-	
-	type::mono args = infer(c, *self.args );
-	
-	type::var tau_prime;
-	dsets.make_set(tau_prime);
-	
-	type::app app( std::make_shared<type::mono>(args),
-				   std::make_shared<type::mono>(tau_prime));
-	dsets.make_set(app);	
-	
-	unify(func, app);
-	
-	return tau_prime;
-
-  } break;	
-
-	// abs
-  case expr::type< func >(): {
-
-	auto& self = e.as<func>();
-
-	type::var from;
-	dsets.make_set(from);
-	
-	context sub = c;
-	sub[self.args] = type::mono(from);
-
-	type::mono to = infer(sub, *self.body);
-	to.type();
-	
-	type::mono res = type::app(std::make_shared<type::mono>(from),
-							   std::make_shared<type::mono>(to));
-
-	dsets.make_set(res);
-	return res;
-
-  } break;
-
-	// let
-  case expr::type< let >(): {
-	auto& self = e.as<let>();
-
-	type::mono def = infer(c, *self.def);
-	
-	context sub = c;
-	sub[self.id] = gen(c, def);
-
-	type::mono body = infer(sub, *self.body);
-	
-	return body;
-  } break;		
-	
-  default:
-	// litterals
-	
-  case expr::type< lit<int> >(): {
-	type::mono res = traits<int>::type();
-	dsets.make_set(res);
-	return res;
-  } break;
-	throw std::runtime_error("unknown expression type");
-  };
-
-};
 
 
 struct list;
@@ -750,19 +662,43 @@ static struct {
 } keyword;
 
 
-ast::expr transform(sexpr e);
-
-ast::expr transform_let(const list& e) {
-  throw std::logic_error("not implemented");
-}
-
-
 struct syntax_error : std::runtime_error {
 
   syntax_error(const std::string& what)
 	: std::runtime_error("syntax error: " + what) { };
   
 };
+
+ast::expr transform(sexpr e);
+
+ast::expr transform_let(const list& e) {
+
+  if( e.size() != 4 ) {
+	throw syntax_error("variable definition");
+  }
+
+  assert( e[0].is<symbol>() && e[0].as<symbol>() == keyword.let );
+
+  // identifier
+  // TODO we should also exclude keywords
+  if( !e[1].is<symbol>() ) {
+	throw syntax_error("variable name must be a symbol");
+  }
+
+  ast::let res;
+  res.id = ast::var{e[1].as<symbol>()};
+
+  // definition
+  res.def = std::make_shared<ast::expr>(transform(e[2]));
+
+  // body
+  res.body = std::make_shared<ast::expr>( transform(e[3]) );
+  
+  return res;
+}
+
+
+
 
 ast::expr transform_func(const list& e) {
 
@@ -845,15 +781,15 @@ ast::expr transform(sexpr e) {
 
 	if( terms.size() > 2 ) throw std::runtime_error("multiple function arguments not handled");
 
-	// TODO unit type for nullary functions
+	// TODO unit type for nullary functions ?
 	// TODO ref in func/args 
 	ast::call res = { std::make_shared<ast::expr>(terms[0]),
 					  std::make_shared<ast::expr>(terms[1]) };
 	return res;
   }
   }
-
   
+  throw std::logic_error("derp");
 }
 
 
