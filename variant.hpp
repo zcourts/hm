@@ -46,6 +46,8 @@ struct type_at<I, T, H...> : type_at<I - 1, H...> { };
 template<class ... Types>
 class variant {
 
+  // TODO this should be the size of Types... and checks >=
+  // uninitialized
   static const unsigned uninitialized = -1;
   
   unsigned id = uninitialized;
@@ -90,7 +92,11 @@ class variant {
   inline void ostream(Out& out) const {
 	out << as<T>();
   }
-  
+
+  template<class T, class Ret, class F, class ...Args>
+  inline Ret apply_thunk(const F& f, Args&& ... args) const {
+	return f( as<T>(), std::forward<Args>(args)... );
+  }
   
   using destruct_type = void ( variant::*) ();  
   using copy_type = void ( variant::*) (const variant& );
@@ -102,7 +108,10 @@ class variant {
 
   template<class In>
   using istream_type = void (variant::*)(In& );
-    
+
+  template<class Ret, class F, class ... Args>
+  using apply_type = Ret (variant::*)(const F&, Args&& ... ) const;
+  
 public:
   
   template<class T>
@@ -234,8 +243,16 @@ public:
 	}
 	return out;
   };
-  
 
+
+  template<class Ret = void, class F, class ... Args>
+  Ret apply(const F& f, Args&& ... args ) const {
+	if( id == uninitialized ) throw error();
+
+	static apply_type<Ret, F, Args...> app[] = { &variant::apply_thunk<Types>... };
+	return (this->*app[id])(f, std::forward<Args>(args)...);
+  }
+  
  
   
 };
