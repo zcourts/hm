@@ -256,6 +256,86 @@ static void unify(type::mono a, type::mono b) {
 
 using substitution = std::map<type::var, type::var>;
 
+
+
+static type::mono represent(type::mono t) {
+  
+  using namespace type;
+
+  mono res = dsets.find_set(t);
+
+  if( res.is<app>() ) {
+	auto& self = res.as<app>();
+	
+	res = app( std::make_shared<mono>( represent(*self.from)),
+			   std::make_shared<mono>( represent(*self.to)) );
+  }  
+
+  // std::cout << "representing " << t << " by " << res << std::endl;
+  
+  return res;
+}
+
+
+
+struct specialize {
+  
+  // sub-dispatch for monotypes
+  struct monotype {
+
+	// replace variables given substitution
+	type::mono operator()(const type::var& self, const specialize& parent, substitution&& s) const {
+	  auto it = s.find(self);
+
+	  if( it != s.end() ) return it->second;
+	  else return self;
+	}
+
+	type::mono operator()(const type::app& self, const specialize& parent, substitution&& s) const {
+	  // TODO should we make new substitutions ?
+	  // TODO should we dsets.find first ?
+
+	  // specialize from/to and get representants
+	  type::mono sfrom = self.from->apply<type::mono>(parent, substitution(s) );
+	  type::mono sto = self.to->apply<type::mono>(parent, substitution(s) );	  
+	  
+	  type::app res = {std::make_shared<type::mono>( sfrom ),
+					   std::make_shared<type::mono>( sto ) };
+	  
+	  dsets.make_set(res);
+	  return res;
+	}
+
+	type::mono operator()(const type::lit& self, const specialize& parent, substitution&& s) const {
+	  return self;
+	}
+	
+  };
+  
+
+  // monotypes
+  type::mono operator()(const type::mono& self, substitution&& s = {}) const {
+	return self.apply<type::mono>(monotype(), *this, std::move(s));
+  }
+
+  
+  // quantified
+  type::mono operator()(const type::forall& self, substitution&& s = {}) const {
+
+	// add substitutions
+	for(const auto& v : self.args) {
+	  type::var fresh;
+	  s[v] = fresh;
+	  dsets.make_set(fresh);
+	};
+
+	// specialize body given new substitutions
+	return self.body->apply<type::mono>(*this, std::move(s));
+  }
+  
+};
+
+
 static type::mono inst(type::poly p, substitution&& s = {}) {
   using namespace type;
 
@@ -278,6 +358,7 @@ static type::mono inst(type::poly p, substitution&& s = {}) {
 	  
 	  type::app res = {std::make_shared<mono>( dsets.find_set( inst(*sub.from, substitution(s) ) )),
 					   std::make_shared<mono>( dsets.find_set( inst(*sub.to, substitution(s) )) )};
+	  
 	  dsets.make_set(res);
 	  return res;
 	  
@@ -306,6 +387,8 @@ static type::mono inst(type::poly p, substitution&& s = {}) {
 }
 
 
+
+
 static void get_vars(std::set<type::var>& out, type::mono t) {
   using namespace type;
   switch(t.type()) {
@@ -321,24 +404,6 @@ static void get_vars(std::set<type::var>& out, type::mono t) {
   
 }
 
-
-static type::mono represent(type::mono t) {
-  
-  using namespace type;
-
-  mono res = dsets.find_set(t);
-
-  if( res.is<app>() ) {
-	auto& self = res.as<app>();
-	
-	res = app( std::make_shared<mono>( represent(*self.from)),
-			   std::make_shared<mono>( represent(*self.to)) );
-  }  
-
-  // std::cout << "representing " << t << " by " << res << std::endl;
-  
-  return res;
-}
 
 
 static type::poly generalize(const context& ctx, type::mono t) {
@@ -402,7 +467,7 @@ template<> struct traits<void> {
 };
 
 
-
+// TODO wrap union-find
 struct union_find {
   
 };
@@ -421,8 +486,10 @@ struct hindley_milner {
 	  std::string msg = "undeclared variable: ";
 	  throw std::runtime_error(msg + v.name);
 	}
-	
-	return inst( it->second );
+
+	// specialize polytype for variable
+	return it->second.apply<type::mono>(specialize());
+	// return inst( it->second );
   }
 
   
@@ -489,8 +556,6 @@ struct hindley_milner {
 	context sub = c;
 
 	type::poly gen = generalize(c, def);
-	// dsets.make_set(gen.as<type::forall>().body->as<type::mono>());
-	
 	sub[let.id] = gen;
 
 	// infer type for the body given our assumption for the variable
