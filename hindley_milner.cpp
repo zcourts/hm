@@ -1,42 +1,17 @@
 #include "hindley_milner.hpp"
 
-#include <boost/pending/disjoint_sets.hpp>
+#include "union_find.hpp"
+
+// #include <boost/pending/disjoint_sets.hpp>
 #include <set>
 
 // debug
 #include <iostream>
 
-using rank_type =  std::map< type::mono, int >;
-using parent_type =  std::map< type::mono, type::mono >;
 
-rank_type rank;
-parent_type parent;
+static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
-template<class T> using pm = boost::associative_property_map<T>;
-
-pm<rank_type> r(rank);
-pm<parent_type> p(parent);
-
-boost::disjoint_sets< pm<rank_type>, pm<parent_type> > dsets(r, p);
-
-void debug() {
-
-  std::cout << "rank:";
-  for( auto& c : rank ) {
-	std::cout << "\t" << c.first << ": " << c.second << std::endl;
-  }
-  
-  std::cout << "parent:";
-  for( auto& c : parent ) {
-  	std::cout << "\t" << c.first << ": " << c.second <<  std::endl;
-  }
-
- 
-}
-
-static void unify(type::mono a, type::mono b) {
-
-  std::cout << "unifying: " << a << " with: " << b << std::endl;
+  // std::cout << "unifying: " << a << " with: " << b << std::endl;
   // debug();
   
   using namespace type;
@@ -45,8 +20,8 @@ static void unify(type::mono a, type::mono b) {
   
   // std::cout << "test parent: " << get(p, a) << std::endl;
   
-  a = dsets.find_set(a);
-  b = dsets.find_set(b);
+  a = types.find(a);
+  b = types.find(b);
   
   // std::cout << "classes: " << a << ", " << b << std::endl;
   
@@ -54,17 +29,17 @@ static void unify(type::mono a, type::mono b) {
 	// TODO generalize to other type constructors, with arity check
 
 	// unify each parameters
-	unify( *a.as< app >().from, *b.as< app >().from);
-	unify( *a.as< app >().to,   *b.as< app >().to);
+	unify(types, *a.as< app >().from, *b.as< app >().from);
+	unify(types, *a.as< app >().to,   *b.as< app >().to);
 	
   } else if( a.type() == mono::type<var>() || b.type() == mono::type<var>() ) {
 	// merge a and b classes (representative is right-hand side for link)
 	// std::cout << "merging classes" << std::endl;
 
 	if( a.type() == mono::type<var>() ) {
-	  dsets.link(a, b);
+	  types.link(a, b);
 	} else {
-	  dsets.link(b, a);
+	  types.link(b, a);
 	}
 
 	// TODO we should make sure the term is the representative and not
@@ -80,17 +55,17 @@ using substitution = std::map<type::var, type::var>;
 
 
 
-static type::mono represent(type::mono t) {
+static type::mono represent(union_find<type::mono>& types, type::mono t) {
   
   using namespace type;
 
-  mono res = dsets.find_set(t);
-
+  mono res = types.find(t);
+  
   if( res.is<app>() ) {
 	auto& self = res.as<app>();
 	
-	res = app{ shared( represent(*self.from)),
-			   shared( represent(*self.to)) };
+	res = app{ shared( represent(types, *self.from)),
+			   shared( represent(types, *self.to)) };
   }  
 
   // std::cout << "representing " << t << " by " << res << std::endl;
@@ -101,6 +76,8 @@ static type::mono represent(type::mono t) {
 
 
 struct specialize {
+
+  union_find<type::mono>& types;
   
   // sub-dispatch for monotypes
   struct monotype {
@@ -123,7 +100,7 @@ struct specialize {
 	  
 	  type::app res = {shared( sfrom ), shared(sto)};
 	  
-	  dsets.make_set(res);
+	  parent.types.add(res);
 	  return res;
 	}
 
@@ -147,7 +124,7 @@ struct specialize {
 	for(const auto& v : self.args) {
 	  type::var fresh;
 	  s[v] = fresh;
-	  dsets.make_set(fresh);
+	  types.add(fresh);
 	};
 
 	// specialize body given new substitutions
@@ -236,15 +213,12 @@ template<> struct traits<void> {
 };
 
 
-// TODO wrap union-find
-struct union_find {
-  
-};
 
 
 struct algorithm_w {
 
   // TODO reference union-find structure
+  union_find<type::mono>& types;
   
   // var
   type::mono operator()(const ast::var& v, context& c) const {
@@ -257,7 +231,7 @@ struct algorithm_w {
 	}
 
 	// specialize polytype for variable
-	return it->second.apply<type::mono>(specialize());
+	return it->second.apply<type::mono>(specialize{types});
   }
 
   
@@ -270,15 +244,15 @@ struct algorithm_w {
 
 	// get a fresh type for result
 	type::mono fresh = type::var();
-	dsets.make_set(fresh);
+	types.add(fresh);
 
 	{
 	  // form function type
 	  type::app app = { shared(args), shared(fresh) };
-	  dsets.make_set(app);
+	  types.add(app);
 	  
 	  // try to unify abstract function type with actual function type
-	  unify(func, app);
+	  unify(types, func, app);
 	
 	  return fresh;
 	}
@@ -290,7 +264,7 @@ struct algorithm_w {
 
 	// get a fresh type for args
 	type::mono from = type::var();
-	dsets.make_set(from);
+	types.add(from);
 
 	// add assumption to the context
 	context sub = c;
@@ -305,7 +279,7 @@ struct algorithm_w {
 	// actual arguments
 	type::app res = {std::make_shared<type::mono>(from),
 					 std::make_shared<type::mono>(to)};
-	dsets.make_set(res);
+	types.add(res);
 	
 	return res;
 
@@ -337,7 +311,7 @@ struct algorithm_w {
   template<class T>
   type::mono operator()(const ast::lit<T>& lit, context& c) const {
 	type::mono res = traits<T>::type();
-	dsets.make_set(res);
+	types.add(res);
 	return res;
   }
   
@@ -347,8 +321,10 @@ struct algorithm_w {
 type::poly hindley_milner(const context& ctx, const ast::expr& e) {
 
   context c = ctx;
-  type::mono t = e.apply<type::mono>( algorithm_w(), c);
-  type::mono r = represent(t);
+  union_find<type::mono> types;
+  
+  type::mono t = e.apply<type::mono>( algorithm_w{types}, c);
+  type::mono r = represent(types, t);
   type::poly p = generalize(c, r);
   
   return p;

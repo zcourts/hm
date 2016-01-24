@@ -1,18 +1,30 @@
 #include "type.hpp"
 
 #include <ostream>
+#include <map>
 
 namespace type {
 
   
   unsigned var::total = 0;
 
+  // TODO we should protect this with mutexes
+  static std::map< std::ostream*, std::map<type::var, unsigned> > context;
+  
   std::ostream& operator<< (std::ostream& out, const var& t) {
-	if( ('a' + t.index) < 'z' ) {
-	  return out << (char)('a' + t.index);
-	} else {
-	  return out << "type-" << t.index;
+
+	auto it = context.find(&out);
+	if(it != context.end() ) {
+
+	  auto id = it->second.find(t);
+
+	  if( id != it->second.end() && ('a' + id->second) < 'z' ) {
+		return out << '\'' << (char)('a' + id->second);
+	  } 
 	}
+	
+	return out << "'type-" << t.index;
+	
   }
 
   bool app::operator<(const app& other) const {
@@ -40,13 +52,21 @@ namespace type {
 
   
   std::ostream& operator<< (std::ostream& out, const forall& t) {
-	out << "forall";
 
-	for( const auto& c : t.args ) {
-	  out << " " << c;
+	auto ins = context.insert( {&out, {} } );
+	auto& index = ins.first->second;
+	
+	// add stuff to context
+	for(unsigned i = 0, n = t.args.size(); i < n; ++i) {
+	  index[t.args[i]] = index.size();
 	}
-	  
-	return out<< ". " << *t.body;
+	
+	out << *t.body;
+
+	// insertion was successful, we must cleanup
+	if( ins.second ) context.erase(ins.first);
+	
+	return out;
   }
 
 }
