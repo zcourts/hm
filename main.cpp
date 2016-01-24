@@ -15,6 +15,7 @@
 #include "ast.hpp"
 #include "type.hpp"
 
+#include "parse.hpp"
 #include "syntax.hpp"
 #include "hindley_milner.hpp"
 
@@ -36,33 +37,43 @@ int main() {
 
   context c;  
   while( (line = getline("> ")) ) {
-	std::stringstream ss(line);
-	sexpr::list prog = sexpr::parse(ss);
+	try {
+	  std::stringstream ss(line);
+
+	  sexpr::list prog = parse(ss);
 	
-	for(const sexpr::expr& s : prog ) {
-	  ast::node e = transform( s );
+	  for(const sexpr::expr& s : prog ) {
+		ast::node e = transform( s );
 
-	  if( e.is<ast::expr>() ) {
-		type::poly p = hindley_milner(c, e.as<ast::expr>());
-		std::cout << s << " :: " << p << std::endl;
+		if( e.is<ast::expr>() ) {
+		  type::poly p = hindley_milner(c, e.as<ast::expr>());
+		  std::cout << s << " :: " << p << std::endl;
+		}
+	  
+		if( e.is<ast::def>() ) {
+		  auto& self = e.as<ast::def>();
+
+		  // we infer type using: (def x y) => (let x y x)
+		  ast::let tmp;
+		  tmp.id = self.id;
+		  tmp.value = self.value;
+		  tmp.body = shared<ast::expr>(self.id);
+
+		  type::poly p = hindley_milner(c, tmp);
+
+		  // add to type context
+		  c[tmp.id] = p;
+
+		  // TODO eval
+		  std::cout << self.id.name << " :: " << p << std::endl;
+		}
 	  }
-	  if( e.is<ast::def>() ) {
-		auto& self = e.as<ast::def>();
-
-		// we infer type using: (def x y) => (let x y x)
-		ast::let tmp;
-		tmp.id = self.id;
-		tmp.value = self.value;
-		tmp.body = shared<ast::expr>(self.id);
-
-		type::poly p = hindley_milner(c, tmp);
-
-		// add to context
-		c[tmp.id] = p;
-
-		// TODO eval
-		std::cout << self.id.name << " :: " << p << std::endl;
-	  }
+	}
+	catch( syntax_error& e ) {
+	  std::cerr << "syntax error: " << e.what() << std::endl;
+	}
+	catch( parse_error& e ) {
+	  std::cerr << "parse error: " << e.what() << std::endl;
 	}
   }
 

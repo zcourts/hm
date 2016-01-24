@@ -5,7 +5,6 @@
 #include "variant.hpp"
 
 #include <ostream>
-#include <istream>
 
 // parse tree
 namespace sexpr {
@@ -25,8 +24,7 @@ namespace sexpr {
 	friend std::ostream& operator<<(std::ostream& out, const list& x);
   };
 
-
-  sexpr::list parse(std::istream& in);
 }
+
 
 #endif
