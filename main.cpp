@@ -23,6 +23,7 @@ using ref = std::shared_ptr<T>;
 template<class T>
 using vec = std::vector<T>;
 
+// type-checking
 namespace type {
 
   struct lit;
@@ -52,6 +53,7 @@ namespace type {
 
 	bool operator<(const var& other) const { return index < other.index; }
 	bool operator==(const var& other) const { return index == other.index; }
+	bool operator!=(const var& other) const { return index != other.index; }	
 
 	friend std::ostream& operator<< (std::ostream& out, const var& t) {
 	  if( ('a' + t.index) < 'z' ) {
@@ -104,6 +106,18 @@ namespace type {
 	vec<var> args;
 	ref<poly> body;
 
+
+	bool operator==(const forall& other) const {
+
+	  if( args.size() != other.args.size() ) return false;
+	  
+	  for(unsigned i = 0, n = args.size(); i < n; ++i) {
+		if(args[i] != other.args[i]) return false;
+	  }
+
+	  return *body == *other.body;
+	}
+	
 	friend std::ostream& operator<< (std::ostream& out, const forall& t) {
 	  out << "forall";
 
@@ -123,7 +137,7 @@ namespace type {
 
 
 
-
+// syntax tree
 namespace ast {
   
   template<class T> struct lit;
@@ -169,6 +183,7 @@ namespace ast {
 
 
 using context = std::map< ast::var, type::poly >;
+
 using rank_type =  std::map< type::mono, int >;
 using parent_type =  std::map< type::mono, type::mono >;
 
@@ -261,8 +276,11 @@ static type::mono inst(type::poly p, substitution&& s = {}) {
 	case mono::type< app >(): {
 	  auto& sub = self.as<app>();
 	  
-	  return app(std::make_shared<mono>( dsets.find_set( inst(*sub.from, substitution(s) ) )),
-				 std::make_shared<mono>( dsets.find_set(inst(*sub.to, substitution(s) )) ) );
+	  type::app res = {std::make_shared<mono>( dsets.find_set( inst(*sub.from, substitution(s) ) )),
+					   std::make_shared<mono>( dsets.find_set( inst(*sub.to, substitution(s) )) )};
+	  dsets.make_set(res);
+	  return res;
+	  
 	} break;
 	default:
 	  // i dunno lol
@@ -277,6 +295,7 @@ static type::mono inst(type::poly p, substitution&& s = {}) {
 	// add substitutions
 	for(const auto& v : self.args) {
 	  s[v] = var();
+	  dsets.make_set(s[v]);
 	};
 
 	return inst(*self.body, std::move(s));
@@ -308,7 +327,7 @@ static type::mono represent(type::mono t) {
   using namespace type;
 
   mono res = dsets.find_set(t);
-  
+
   if( res.is<app>() ) {
 	auto& self = res.as<app>();
 	
@@ -322,14 +341,12 @@ static type::mono represent(type::mono t) {
 }
 
 
-static type::poly gen(const context& ctx, type::mono t) {
+static type::poly generalize(const context& ctx, type::mono t) {
   using namespace type;
 
   // all type variables in monotype t
   std::set<var> all;
   get_vars(all, t);
-  
-
   
   // FIXME: maintain this set 
   std::set< var > bound;
@@ -386,6 +403,11 @@ template<> struct traits<void> {
 
 
 
+struct union_find {
+  
+};
+
+
 struct hindley_milner {
 
   // TODO reference union-find structure
@@ -440,6 +462,8 @@ struct hindley_milner {
 	context sub = c;
 	sub[func.args] = type::mono(from);
 
+	// assert(sub[func.args] == type::mono(from) );
+	
 	// infer type for function body, given our assumption
 	type::mono to = func.body->apply<type::mono>(*this, sub);
 
@@ -463,7 +487,11 @@ struct hindley_milner {
 	// add a new assumption to our context, and generalize as much as
 	// possible given current context
 	context sub = c;
-	sub[let.id] = gen(c, def);
+
+	type::poly gen = generalize(c, def);
+	// dsets.make_set(gen.as<type::forall>().body->as<type::mono>());
+	
+	sub[let.id] = gen;
 
 	// infer type for the body given our assumption for the variable
 	// type
@@ -485,7 +513,7 @@ struct hindley_milner {
 
 
 
-
+// parse tree
 struct list;
 
 // TODO string, real
@@ -808,8 +836,9 @@ int main() {
   for(const auto& s : prog.as<list>() ) {
 	ast::expr e = transform(s);
 
-	type::mono t = represent( e.apply<type::mono>( hindley_milner(), c) );
-	type::poly p = gen(c, t);
+	type::mono t = e.apply<type::mono>( hindley_milner(), c);
+	type::mono r = represent(t);
+	type::poly p = generalize(c, r);
 
 	std::cout << s << " :: " << p << std::endl;	
   }
