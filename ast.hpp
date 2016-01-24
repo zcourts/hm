@@ -4,6 +4,10 @@
 #include "common.hpp"
 #include "variant.hpp"
 
+#include "sexpr.hpp"
+
+#include <stdexcept>
+
 // syntax tree
 namespace ast {
   
@@ -46,6 +50,14 @@ namespace ast {
 	ref<expr> def;
 	ref<expr> body;
   };
+
+  
+  struct syntax_error : std::runtime_error {
+	syntax_error(const std::string& what);
+  };
+
+
+  ast::expr transform(const sexpr::expr& e);
   
 }
 

@@ -4,13 +4,12 @@
 #include "common.hpp"
 #include "variant.hpp"
 
-
-// TODO cpp
 #include <ostream>
 
 // type-checking
 namespace type {
 
+  // monotypes
   struct lit;
   struct var;
   struct app;
@@ -23,12 +22,12 @@ namespace type {
 	inline bool operator<(const lit& other) const { return name < other.name; }
 	inline bool operator==(const lit& other) const { return name == other.name; }
 
-
-	inline friend std::ostream& operator<< (std::ostream& out, const lit& t) {
+	inline friend std::ostream& operator<< (std::ostream& out, const lit& t ) {
 	  return out << t.name;
 	}
-  
+	
   };
+
   
   struct var {
 	var(unsigned index = total++) : index(index) { }
@@ -46,31 +45,27 @@ namespace type {
 
   
   struct app {
-	app(ref<mono> from, ref<mono> to) : from(from), to(to) { }
 	ref<mono> from, to;
-
+	
 	bool operator<(const app& other) const;
 	bool operator==(const app& other) const;
 	
-
 	friend std::ostream& operator<< (std::ostream& out, const app& t);
   };
 
+  
   // TODO other type constructors, add func
-
-  // TODO univ/exist ?
+  
+  // polytypes
   struct forall;
   
   using poly = variant< mono, forall >;
 
-  
   struct forall {
 	vec<var> args;
 	ref<poly> body;
 
-	
 	friend std::ostream& operator<< (std::ostream& out, const forall& t);
-	
   };
 
 

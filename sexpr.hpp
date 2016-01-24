@@ -4,13 +4,15 @@
 #include "common.hpp"
 #include "variant.hpp"
 
+#include <ostream>
+#include <istream>
+
+// parse tree
 namespace sexpr {
 
-  
-  // parse tree
   struct list;
 
-  // TODO string, real
+  // TODO string, number
   using expr = variant< list, symbol, int >;
 
   struct list : vec<expr> {
@@ -20,25 +22,11 @@ namespace sexpr {
 	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }  
 	list() {}
 	
-	friend std::ostream& operator<<(std::ostream& out, const list& x) {
-	  out << '(';
-	
-	  bool first = true;
-	  for(const auto& xi : x) {
-		if(!first) {
-		  out << ' ';
-		} else {
-		  first = false;
-		}
-		out << xi;
-	  }
-	  out << ')';
-	
-	  return out;
-	}
+	friend std::ostream& operator<<(std::ostream& out, const list& x);
   };
 
 
+  sexpr::list parse(std::istream& in);
 }
 
 #endif

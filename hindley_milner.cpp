@@ -89,8 +89,8 @@ static type::mono represent(type::mono t) {
   if( res.is<app>() ) {
 	auto& self = res.as<app>();
 	
-	res = app( shared( represent(*self.from)),
-			   shared( represent(*self.to)) );
+	res = app{ shared( represent(*self.from)),
+			   shared( represent(*self.to)) };
   }  
 
   // std::cout << "representing " << t << " by " << res << std::endl;

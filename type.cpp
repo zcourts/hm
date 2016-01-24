@@ -1,11 +1,11 @@
 #include "type.hpp"
 
+#include <ostream>
 
 namespace type {
 
   
   unsigned var::total = 0;
-
 
   std::ostream& operator<< (std::ostream& out, const var& t) {
 	if( ('a' + t.index) < 'z' ) {
