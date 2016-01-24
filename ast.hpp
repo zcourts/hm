@@ -4,20 +4,17 @@
 #include "common.hpp"
 #include "variant.hpp"
 
-#include "sexpr.hpp"
-
-#include <stdexcept>
-
 // syntax tree
 namespace ast {
-  
-  template<class T> struct lit;
-  struct var;
-  struct func;
-  struct call;
-  struct let;
 
-  using expr = variant< lit<void>, lit<int>, var, func, call, let >;
+  // expressions
+  template<class T> struct lit;	// literals
+  struct var;					// variables
+  struct abs;					// lambda-abstractions
+  struct app;					// applications
+  struct let;					// local defintions
+  
+  using expr = variant< lit<void>, lit<int>, var, abs, app, let >;
   
   template<class T>
   struct lit {
@@ -28,36 +25,39 @@ namespace ast {
   
   struct var {
 	symbol name;
-	bool operator<(const var& other) const {
+	inline bool operator<(const var& other) const {
 	  return name < other.name;
 	}
   };
 
   // TODO vec for args
-  struct func {
+  struct abs {
 	var args;
 	ref<expr> body;
   };
 
   // TODO vec for args
-  struct call {
+  struct app {
 	ref<expr> func;
 	ref<expr> args;
   };
 
   struct let {
 	var id;
-	ref<expr> def;
+	ref<expr> value;
 	ref<expr> body;
   };
 
-  
-  struct syntax_error : std::runtime_error {
-	syntax_error(const std::string& what);
+
+  // definitions
+  struct def {
+	var id;
+	ref<expr> value;
   };
 
 
-  ast::expr transform(const sexpr::expr& e);
+  // complete syntax TODO types
+  using node = variant<expr, def>;
   
 }
 

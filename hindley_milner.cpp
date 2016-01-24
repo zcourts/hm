@@ -262,7 +262,7 @@ struct algorithm_w {
 
   
   // app
-  type::mono operator()(const ast::call& app, context& c) const {
+  type::mono operator()(const ast::app& app, context& c) const {
 
 	// infer types for func/args
 	type::mono func = app.func->apply<type::mono>(*this, c);
@@ -286,7 +286,7 @@ struct algorithm_w {
 
 
   // abs
-  type::mono operator()(const ast::func& func, context& c) const {
+  type::mono operator()(const ast::abs& abs, context& c) const {
 
 	// get a fresh type for args
 	type::mono from = type::var();
@@ -294,12 +294,12 @@ struct algorithm_w {
 
 	// add assumption to the context
 	context sub = c;
-	sub[func.args] = from;
+	sub[abs.args] = from;
 
 	// assert(sub[func.args] == type::mono(from) );
 	
 	// infer type for function body, given our assumption
-	type::mono to = func.body->apply<type::mono>(*this, sub);
+	type::mono to = abs.body->apply<type::mono>(*this, sub);
 
 	// this is our result type, which will be unified during app given
 	// actual arguments
@@ -316,7 +316,7 @@ struct algorithm_w {
   type::mono operator()(const ast::let& let, context& c) const {
 
 	// infer type for definition
-	type::mono def = let.def->apply<type::mono>(*this, c);
+	type::mono def = let.value->apply<type::mono>(*this, c);
 
 	// add a new assumption to our context, and generalize as much as
 	// possible given current context
