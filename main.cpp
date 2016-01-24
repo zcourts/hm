@@ -21,6 +21,11 @@ template<class T>
 using ref = std::shared_ptr<T>;
 
 template<class T>
+ref<T> shared(const T& x) {
+  return std::make_shared<T>(x);
+}
+
+template<class T>
 using vec = std::vector<T>;
 
 // type-checking
@@ -267,8 +272,8 @@ static type::mono represent(type::mono t) {
   if( res.is<app>() ) {
 	auto& self = res.as<app>();
 	
-	res = app( std::make_shared<mono>( represent(*self.from)),
-			   std::make_shared<mono>( represent(*self.to)) );
+	res = app( shared( represent(*self.from)),
+			   shared( represent(*self.to)) );
   }  
 
   // std::cout << "representing " << t << " by " << res << std::endl;
@@ -299,8 +304,7 @@ struct specialize {
 	  type::mono sfrom = self.from->apply<type::mono>(parent, substitution(s) );
 	  type::mono sto = self.to->apply<type::mono>(parent, substitution(s) );	  
 	  
-	  type::app res = {std::make_shared<type::mono>( sfrom ),
-					   std::make_shared<type::mono>( sto ) };
+	  type::app res = {shared( sfrom ), shared(sto)};
 	  
 	  dsets.make_set(res);
 	  return res;
@@ -335,60 +339,7 @@ struct specialize {
   
 };
 
-
-static type::mono inst(type::poly p, substitution&& s = {}) {
-  using namespace type;
-
-  switch(p.type()) {
-
-	// monotypes
-  case poly::type<mono>(): {
-	// replace variables given substitution
-	auto& self = p.as<mono>();
-	switch(self.type()) {
-
-	case mono::type<var>(): {
-	  auto it = s.find(self.as<var>());
-
-	  if( it != s.end() ) return it->second;
-	  else return self;
-	} break;
-	case mono::type< app >(): {
-	  auto& sub = self.as<app>();
-	  
-	  type::app res = {std::make_shared<mono>( dsets.find_set( inst(*sub.from, substitution(s) ) )),
-					   std::make_shared<mono>( dsets.find_set( inst(*sub.to, substitution(s) )) )};
-	  
-	  dsets.make_set(res);
-	  return res;
-	  
-	} break;
-	default:
-	  // i dunno lol
-	  return self;
-	};	
-  }
-	
-	// polytypes
-  case poly::type< forall >(): {
-	auto& self = p.as< forall >();
-
-	// add substitutions
-	for(const auto& v : self.args) {
-	  s[v] = var();
-	  dsets.make_set(s[v]);
-	};
-
-	return inst(*self.body, std::move(s));
-  }	break;
-  };
-
-  throw std::logic_error("derp");
-}
-
-
-
-
+// list all variables in monotype
 static void get_vars(std::set<type::var>& out, type::mono t) {
   using namespace type;
   switch(t.type()) {
@@ -405,7 +356,7 @@ static void get_vars(std::set<type::var>& out, type::mono t) {
 }
 
 
-
+// generalize monotype given context (quantify all unbound variables)
 static type::poly generalize(const context& ctx, type::mono t) {
   using namespace type;
 
@@ -444,12 +395,13 @@ static type::poly generalize(const context& ctx, type::mono t) {
 			  std::back_inserter(res.args));
 	
 	// watch out: we want deep copy with class representatives
-	res.body = std::make_shared<poly>(t);
+	res.body = shared<poly>(t);
 	return res;
   }
 }
 
 
+// constant types for literals
 template<class T> struct traits;
 
 template<> struct traits<int> {
@@ -489,7 +441,6 @@ struct hindley_milner {
 
 	// specialize polytype for variable
 	return it->second.apply<type::mono>(specialize());
-	// return inst( it->second );
   }
 
   
@@ -501,19 +452,18 @@ struct hindley_milner {
 	type::mono args = app.args->apply<type::mono>(*this, c);
 
 	// get a fresh type for result
-	type::var tau_prime;
-	dsets.make_set(tau_prime);
+	type::mono fresh = type::var();
+	dsets.make_set(fresh);
 
 	{
 	  // form function type
-	  type::app app = { std::make_shared<type::mono>(args),
-						std::make_shared<type::mono>(tau_prime) };
+	  type::app app = { shared(args), shared(fresh) };
 	  dsets.make_set(app);
 	  
 	  // try to unify abstract function type with actual function type
 	  unify(func, app);
 	
-	  return tau_prime;
+	  return fresh;
 	}
   }
 
@@ -522,12 +472,12 @@ struct hindley_milner {
   type::mono operator()(const ast::func& func, context& c) const {
 
 	// get a fresh type for args
-	type::var from;
+	type::mono from = type::var();
 	dsets.make_set(from);
 
 	// add assumption to the context
 	context sub = c;
-	sub[func.args] = type::mono(from);
+	sub[func.args] = from;
 
 	// assert(sub[func.args] == type::mono(from) );
 	
