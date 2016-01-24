@@ -32,13 +32,11 @@ const char* getline(const char* prompt) {
 
 int main() {
 
-  std::string data;
+  const char* line;
 
   context c;  
-  while(true) {
-	data = getline("> ");
-
-	std::stringstream ss(data);
+  while( (line = getline("> ")) ) {
+	std::stringstream ss(line);
 	sexpr::list prog = sexpr::parse(ss);
 	
 	for(const sexpr::expr& s : prog ) {
