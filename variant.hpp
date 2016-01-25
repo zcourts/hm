@@ -22,16 +22,6 @@ template<unsigned I, unsigned ... Rest> struct maximum<I, Rest...> {
 };
 
 
-template<class X, class ... In> struct index_of {
-  static_assert(sizeof...(In), "type does not belong to variant");
-};
-
-template<class X, class ... Rest> struct index_of<X, X, Rest...> : unsigned_type<0> { };
-
-template<class X, class H, class ... Rest> struct index_of<X, H, Rest...>
-  : unsigned_type<1 + index_of<X, Rest...>::value > { };
-
-
 template<unsigned I, class ... H> struct type_at;
 
 template<class T, class ... H > struct type_at<0, T, H...> {
@@ -40,6 +30,38 @@ template<class T, class ... H > struct type_at<0, T, H...> {
 
 template<unsigned I, class T, class ... H >
 struct type_at<I, T, H...> : type_at<I - 1, H...> { };
+
+template<class ... Types> class variant;
+
+// index of type in a variant through constexpr function (ADL):
+// unsigned index = get( index_of<variant_type, type>{} );
+
+// note: ADL is used to avoid horrible recursive error messages:
+// functions are first built in a recursive way, but only the actual
+// function call will trigger the error, if any.
+template<class T, class Variant, int I = 0> struct index_of;
+
+template<class T, class ... Tail, int I >
+struct index_of< T, variant<T, Tail...>, I > {
+  friend constexpr unsigned get(index_of) { return I; }
+};
+
+template<class ... Tail, class H, class T, int I>
+struct index_of< T, variant<H, Tail...>, I > : index_of< T, variant<Tail...>, I + 1> { };
+
+template<class T, int I>
+struct index_of< T, variant<>, I > {
+
+  template<class U>  struct error {
+	static const bool value = false;
+  };
+  
+  friend constexpr unsigned get(index_of) {
+	static_assert( error<T>::value, "type does not belong to variant");
+	return -1;
+  }
+
+};
 
 
 
@@ -54,6 +76,7 @@ class variant {
   
   static constexpr unsigned data_size = maximum< sizeof(Types)...>::value;
   char data[data_size];
+
 
   struct destruct {
 
@@ -149,7 +172,7 @@ class variant {
 public:
   
   template<class T>
-  variant(const T& other) : id( index_of<T, Types...>::value ) {
+  variant(const T& other) : id( get( index_of<T, variant>{} ) ) {
 	apply( construct<T>(), other );
   }
 
@@ -171,6 +194,8 @@ public:
   };
 
 
+  // TODO move assignement/constructors
+  
   variant& operator=(const variant& other) {
 
 	// different types ?
@@ -231,7 +256,7 @@ public:
 
   template<class T>
   static constexpr unsigned type() {
-	return index_of<T, Types...>::value;
+	return get( index_of<T, variant>{} );
   }
 
   bool operator<(const variant& other) const {
