@@ -54,84 +54,114 @@ class variant {
   
   static constexpr unsigned data_size = maximum< sizeof(Types)...>::value;
   char data[data_size];
+
+  struct destruct {
+
+	template<class T>
+	void operator()(T& self) const {
+	  self.~T();
+	}
+	
+  };
+
+
+  template<class From>
+  struct construct {
+
+	// TODO deal with alignment
+	void operator()(From& self, const From& other) const {
+	  new((void*)&self) From(other);
+	}
+
+	template<class T>
+	void operator()(T&, const From& other) const {
+	  throw std::logic_error("should never be called");
+	}
+	
+  };
   
-  template<class T>
-  inline void destruct() {
-	((T*)data)->~T();
-  }
+
+  struct copy_construct {
+
+	template<class T>
+	void operator()(T& self, const variant& other) const {
+	  construct<T>()(self, other.as<T>());
+	}
+	
+  };
+
+  struct equals {
+
+	template<class T>
+	bool operator()(const T& self, const variant& other) const {
+	  return self == other.as<T>();
+	}
+	
+  };
+
+  struct compare {
+
+	template<class T>
+	bool operator()(const T& self, const variant& other) const {
+	  return self < other.as<T>();
+	}
+	
+  };
+
+  template<class Out>
+  struct ostream {
+
+	template<class T>
+	Out& operator()(const T& self, Out& out) const {
+	  return out << self;
+	}
+	
+  };
   
-  template<class T>
-  inline void construct(const T& from) {
-	new((void*)data) T(from);
-  }
 
-  template<class T>
-  inline void copy(const variant& from) {
-	construct<T>(from.as<T>());
+  struct copy_assign {
+
+	template<class T>
+	void operator()(T& self, const variant& other) const {
+	  self = other.as<T>();
+	}
+	
   };
 
-  template<class T>
-  inline bool compare(const variant& to) const {
-	return as<T>() < to.as<T>();
-  };
-
-
-  template<class T>
-  inline bool equals(const variant& to) const {
-	return as<T>() == to.as<T>();
-  };
   
-
-
-  template<class T>
-  inline void copy_assign(const variant& to) {
-	as<T>() = to.as<T>();
-  };
-
-  template<class Out, class T>
-  inline void ostream(Out& out) const {
-	out << as<T>();
+  template<class T, class Ret, class F, class ...Args>
+  inline Ret apply_const_thunk(const F& f, Args&& ... args) const {
+	return f( as<T>(), std::forward<Args>(args)... );
   }
 
   template<class T, class Ret, class F, class ...Args>
-  inline Ret apply_thunk(const F& f, Args&& ... args) const {
+  inline Ret apply_thunk(const F& f, Args&& ... args) {
 	return f( as<T>(), std::forward<Args>(args)... );
   }
+
   
-  using destruct_type = void ( variant::*) ();  
-  using copy_type = void ( variant::*) (const variant& );
-  using copy_assign_type = void ( variant::*) (const variant& );
-  using compare_type = bool ( variant::*) (const variant& ) const;  
-
-  template<class Out>
-  using ostream_type = void (variant::*)(Out& ) const;
-
-  template<class In>
-  using istream_type = void (variant::*)(In& );
+  template<class Ret, class F, class ... Args>
+  using apply_const_type = Ret (variant::*)(const F&, Args&& ... ) const;
 
   template<class Ret, class F, class ... Args>
-  using apply_type = Ret (variant::*)(const F&, Args&& ... ) const;
+  using apply_type = Ret (variant::*)(const F&, Args&& ... );
   
 public:
   
   template<class T>
   variant(const T& other) : id( index_of<T, Types...>::value ) {
-	construct<T>(other);
+	apply( construct<T>(), other );
   }
 
   variant(const variant& other) : id(other.id) {
+	if( id == uninitialized ) return;
 
-	if( id != uninitialized ) { 
-	  static copy_type cpy[] = { &variant::copy<Types>... };
-	  (this->*cpy[id])(other);
-	}
+	apply( copy_construct(), other);
   }
   
   ~variant() {
 	if( id == uninitialized ) return;
-	
-	static destruct_type dtor[] = { &variant::destruct<Types>... };
-	(this->*dtor[id])();
+	apply( destruct() );
   }
 
   variant() : id(uninitialized) { }
@@ -142,35 +172,31 @@ public:
 
 
   variant& operator=(const variant& other) {
-	// assert(other.id != uninitialized );
-	
-  	if( id == uninitialized ) {
-  	  id = other.id;
 
-	  // contruct
-  	  if( other.id != uninitialized ) {
-  		static copy_type cpy[] = { &variant::copy<Types>... };
-  		(this->*cpy[id])(other);
-  	  }
-  	} else {
+	// different types ?
+	if( id != other.id ) {
 
-	  // same type: assign
-  	  if( other.id == id ) {
-  		static copy_assign_type cpy[] = { &variant::copy_assign<Types>... };
-  		(this->*cpy[id])(other);
-  	  } else {
-  		// type change: destruct then construct
-		static destruct_type dtor[] = { &variant::destruct<Types>... };
-  		(this->*dtor[id])();
+	  // destroy if needed
+	  if( id != uninitialized ) {
+		apply( destruct() );
+	  }
 
-		id = other.id;
+	  // destructed, now change type
+	  id = other.id;
 
-		if( other.id != uninitialized ) {
-		  static copy_type cpy[] = { &variant::copy<Types>... };
-		  (this->*cpy[id])(other);
-		}
-  	  }
-  	}
+	  // construct if needed
+	  if( other.id != uninitialized ) {
+		apply( copy_construct(), other );
+	  }
+	  
+	} else {
+
+	  // copy assign if needed
+	  if( id != uninitialized ) {
+		apply( copy_assign(), other);
+	  }
+
+	}
 
   	return *this;
   }
@@ -195,7 +221,7 @@ public:
 	return *reinterpret_cast<const T*>(data);
   }
 
-  // TODO unsafe casts
+  // TODO unsafe casts ?
 
   
   unsigned type() const {
@@ -209,44 +235,54 @@ public:
   }
 
   bool operator<(const variant& other) const {
+	// TODO do we want to compare uninitalized values ?
+	
 	if( id < other.id ) return true;
 	if( id != other.id ) return false;
-
 	if( id == uninitialized ) return false;
-	static compare_type cmp[] = { &variant::compare<Types>...};
-	return (this->*cmp[id])(other);
+
+	return apply<bool>(compare(), other);
   }
 
-  bool operator!=(const variant& other) const {
+  inline bool operator!=(const variant& other) const {
 	return ! (*this == other);
   }
   
-  bool operator==(const variant& other) const {
-	if( id != other.id ) return false;
+  inline bool operator==(const variant& other) const {
 
-	// TODO ?
+	// TODO do we want to compare uninitalized values ?
+	if( id != other.id ) return false;
 	if( id == uninitialized ) return true;
-	
-	static compare_type cmp[] = { &variant::equals<Types>...};
-	return (this->*cmp[id])(other);
+
+	return apply<bool>(equals(), other);
   }
 
 
   template<class Out>
   friend Out& operator<<(Out& out, const variant& v) {
 
-	if( v.id != uninitialized ) {
-	  static ostream_type<Out> str[] = { &variant::ostream<Out, Types>...};
-	  (v.*str[v.id])(out);
+	if( v.id == uninitialized ) {
+	  return out << "*uninitialized*";
 	} else {
-	  out << "*uninitialized*";
+	  return v.apply<Out&>( ostream<Out>(), out );
 	}
-	return out;
+	
   };
 
 
+  // static type switch from a function object f: (const T&, Args&&...) -> Ret
   template<class Ret = void, class F, class ... Args>
-  Ret apply(const F& f, Args&& ... args ) const {
+  inline Ret apply(const F& f, Args&& ... args ) const {
+	if( id == uninitialized ) throw error();
+
+	static apply_const_type<Ret, F, Args...> app[] = { &variant::apply_const_thunk<Types>... };
+	return (this->*app[id])(f, std::forward<Args>(args)...);
+  }
+
+
+  // static type switch from a function object f: (T&, Args&&...) -> Ret
+  template<class Ret = void, class F, class ... Args>
+  inline Ret apply(const F& f, Args&& ... args ) {
 	if( id == uninitialized ) throw error();
 
 	static apply_type<Ret, F, Args...> app[] = { &variant::apply_thunk<Types>... };
