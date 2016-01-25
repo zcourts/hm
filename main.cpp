@@ -49,14 +49,35 @@ struct lisp_handler {
 	using namespace lisp;
 	
 	(*env)[ symbolize("+") ] = builtin( [](environment, vec<value>&& args) -> value {
-	  real res = 0;
+		if(args.empty()) throw error("1+ args expected");
+		
+		real res = 0;
 
-	  for(const auto& v : args) {
-		if( v.is<real>() ) res += v.as<real>();
-		if( v.is<int>() ) res += v.as<int>();
-	  }
+		for(const auto& v : args) {
+		  if( v.is<real>() ) res += v.as<real>();
+		  else if( v.is<int>() ) res += v.as<int>();
+		  else throw error("bad argument type");
+		}
 
-	  return res;
+		return res;
+	  });
+
+	(*env)[ symbolize("-") ] = builtin( [](environment, vec<value>&& args) -> value {
+		if(args.empty()) throw error("1+ args expected");
+		
+		real res = 0;
+
+		unsigned i = 0;
+		for(const auto& v : args) {
+
+		  if( v.is<real>() ) { res = i? res - v.as<real>() : v.as<real>(); }
+		  else if( v.is<int>() ) { res = i? res - v.as<int>() : v.as<int>(); }
+		  else throw error("bad argument type");
+
+		  ++i;
+		}
+
+		return res;
 	  });
 
   }
