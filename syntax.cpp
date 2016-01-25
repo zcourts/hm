@@ -67,11 +67,9 @@ struct match_expr {
 				   std::back_inserter(terms), transform_expr);
 	
 	// first must be a lambda or a variable
-	switch(terms[0].type()) {
-	case ast::expr::type<ast::abs>():
-	case ast::expr::type<ast::var>():	  
-	  break;
-	default:
+	if( terms[0].is<ast::abs>() && terms[0].is<ast::var>() ) {
+	  // good
+	} else {
 	  throw std::runtime_error("error in function application");
 	}
 

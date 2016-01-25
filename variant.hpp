@@ -5,65 +5,72 @@
 #include <stdexcept>
 #include <cassert>
 
-template<class T, T x> struct value_type {
-  static const T value = x;
-};
-
-template<unsigned x>
-using unsigned_type = value_type<unsigned, x>;
-
-template<unsigned ... I> struct maximum;
-
-template<unsigned I> struct maximum<I> : unsigned_type<I> { };
-
-template<unsigned I, unsigned ... Rest> struct maximum<I, Rest...> {
-  static constexpr unsigned sub = maximum<Rest...>::value;
-  static constexpr unsigned value = I > sub ? I : sub;
-};
-
-
-template<unsigned I, class ... H> struct type_at;
-
-template<class T, class ... H > struct type_at<0, T, H...> {
-  typedef T type;
-};
-
-template<unsigned I, class T, class ... H >
-struct type_at<I, T, H...> : type_at<I - 1, H...> { };
 
 template<class ... Types> class variant;
 
-// index of type in a variant through constexpr function (ADL):
-// unsigned index = get( index_of<variant_type, type>{} );
-
-// note: ADL is used to avoid horrible recursive error messages:
-// functions are first built in a recursive way, but only the actual
-// function call will trigger the error, if any.
-template<class T, class Variant, int I = 0> struct index_of;
-
-template<class T, class ... Tail, int I >
-struct index_of< T, variant<T, Tail...>, I > {
-  friend constexpr unsigned get(index_of) { return I; }
-};
-
-template<class ... Tail, class H, class T, int I>
-struct index_of< T, variant<H, Tail...>, I > : index_of< T, variant<Tail...>, I + 1> { };
-
-template<class T, int I>
-struct index_of< T, variant<>, I > {
-
-  template<class U>  struct error {
-	static const bool value = false;
-  };
+// some helpers
+namespace impl {
   
-  friend constexpr unsigned get(index_of) {
-	static_assert( error<T>::value, "type does not belong to variant");
-	return -1;
-  }
-
-};
+  // integral value
+  template<class T, T x> struct value_type {
+	static const T value = x;
+  };
 
 
+  // maximum value of a list of numbers
+  template<class T, T ... I> struct maximum;
+
+  template<class T, T I> struct maximum<T, I> : value_type<T, I> { };
+
+  template<class T, T I, T ... Rest> struct maximum<T, I, Rest...> {
+	static constexpr T sub = maximum<T, Rest...>::value;
+	static constexpr T value = I > sub ? I : sub;
+  };
+
+
+  // type at a given index in a parameter pack
+  template<unsigned I, class ... H> struct type_at;
+
+  template<class T, class ... H > struct type_at<0, T, H...> {
+	typedef T type;
+  };
+
+  template<unsigned I, class T, class ... H >
+  struct type_at<I, T, H...> : type_at<I - 1, H...> { };
+
+
+
+  // index of type in a variant through constexpr function (ADL):
+  // unsigned index = get( index_of<variant_type, type>{} );
+
+  // note: ADL is used to avoid horrible recursive error messages:
+  // functions are first built in a recursive way, but only the actual
+  // function call will trigger the error, if any.
+
+  // TODO: can we abstract variant ?
+  template<class T, class Variant, int I = 0> struct index_of;
+
+  template<class T, class ... Tail, int I >
+  struct index_of< T, variant<T, Tail...>, I > {
+	friend constexpr unsigned get(index_of) { return I; }
+  };
+
+  template<class ... Tail, class H, class T, int I>
+  struct index_of< T, variant<H, Tail...>, I > : index_of< T, variant<Tail...>, I + 1> { };
+
+  template<class T, int I>
+  struct index_of< T, variant<>, I > {
+
+	template<class U> struct error : value_type<bool, false > { };
+  
+	friend constexpr unsigned get(index_of) {
+	  static_assert( error<T>::value, "type does not belong to variant");
+	  return -1;
+	}
+
+  };
+
+}
 
 template<class ... Types>
 class variant {
@@ -74,7 +81,7 @@ class variant {
   
   unsigned id = uninitialized;
   
-  static constexpr unsigned data_size = maximum< sizeof(Types)...>::value;
+  static constexpr unsigned data_size = impl::maximum<unsigned, sizeof(Types)...>::value;
   char data[data_size];
 
 
@@ -172,7 +179,7 @@ class variant {
 public:
   
   template<class T>
-  variant(const T& other) : id( get( index_of<T, variant>{} ) ) {
+  variant(const T& other) : id( get( impl::index_of<T, variant>{} ) ) {
 	apply( construct<T>(), other );
   }
 
@@ -230,9 +237,9 @@ public:
   // query
   template<class T>
   bool is() const {
-	return type() == variant::type<T>();
+	return id == get( impl::index_of<T, variant>{} );
   };
-
+  
   // cast
   template<class T>
   T& as() {
@@ -247,18 +254,7 @@ public:
   }
 
   // TODO unsafe casts ?
-
   
-  unsigned type() const {
-	assert( id != uninitialized );	
-	return id;
-  }
-
-  template<class T>
-  static constexpr unsigned type() {
-	return get( index_of<T, variant>{} );
-  }
-
   bool operator<(const variant& other) const {
 	// TODO do we want to compare uninitalized values ?
 	

@@ -25,18 +25,18 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
   
   // std::cout << "classes: " << a << ", " << b << std::endl;
   
-  if( a.type() == mono::type< app >() && b.type() == mono::type< app >() ) {
+  if( a.is<app>() && b.is<app>() ) {
 	// TODO generalize to other type constructors, with arity check
 
 	// unify each parameters
 	unify(types, *a.as< app >().from, *b.as< app >().from);
 	unify(types, *a.as< app >().to,   *b.as< app >().to);
 	
-  } else if( a.type() == mono::type<var>() || b.type() == mono::type<var>() ) {
+  } else if( a.is<var>() || b.is<var>() ) {
 	// merge a and b classes (representative is right-hand side for link)
 	// std::cout << "merging classes" << std::endl;
 
-	if( a.type() == mono::type<var>() ) {
+	if( a.is<var>() ) {
 	  types.link(a, b);
 	} else {
 	  types.link(b, a);
@@ -136,17 +136,15 @@ struct specialize {
 // list all variables in monotype
 static void get_vars(std::set<type::var>& out, type::mono t) {
   using namespace type;
-  switch(t.type()) {
 
-  case mono::type<var>(): out.insert( t.as<var>() ); break;
-  case mono::type< app >(): {
+  if(t.is<var>() ) {
+	out.insert( t.as<var>() );
+  } else if( t.is<app>() ) {
 	auto& self = t.as< app >();
 	get_vars(out, *self.from);
 	get_vars(out, *self.to);
-  } break;	
-	// nothing lol
-  };
-  
+  }
+ 
 }
 
 
@@ -163,9 +161,8 @@ static type::poly generalize(const context& ctx, type::mono t) {
 
   // all bound type variables in context
   for(const auto& x : ctx) {
-	switch( x.second.type() ) {
 
-	case poly::type< forall >():
+	if( x.second.is<forall>() ) {
 	  for(const auto& v : x.second.as< forall >().args ) {
 		bound.insert( v );
 	  }
