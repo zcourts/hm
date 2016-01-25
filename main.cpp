@@ -42,7 +42,7 @@ struct sexpr_parser {
 };
 
 struct lisp_handler {
-  mutable lisp::environment env;
+  mutable lisp::environment env = shared<lisp::environment_type>();
 
   void operator()(const sexpr::list& prog) const {
 	try {

@@ -103,6 +103,7 @@ namespace lisp {
 	// variables
 	value operator()(const symbol& self, environment env) const {
 
+	  // TODO check this during expand phase
 	  {
 		auto it = special.find( self );
 		if( it != special.end() ) throw error("reserved keyword");

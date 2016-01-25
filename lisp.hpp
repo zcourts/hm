@@ -33,13 +33,11 @@ namespace lisp {
   std::ostream& operator<<(std::ostream& out, const lambda& f);
   std::ostream& operator<<(std::ostream& out, const environment& e);  
   
-  class environment_type : std::map<symbol, value> {
+  class environment_type : public std::enable_shared_from_this<environment_type>,
+						   public std::map<symbol, value> {
 	environment parent;
   public:
 
-	using environment_type::map::find;
-	using environment_type::map::end;	
-	
 	environment_type(environment parent = nullptr) : parent(parent) { }
 	
 	template<class SIterator, class VIterator>
@@ -49,7 +47,7 @@ namespace lisp {
 		throw error("bad argument count");
 	  }
 	  
-	  environment res = std::make_shared<environment_type>( environment(this) );
+	  environment res = std::make_shared<environment_type>( shared_from_this() );
 	  
 	  for(; sfirst != slast && vfirst != vlast; ++sfirst, ++vfirst) {
 		res->insert( {*sfirst, *vfirst} );
