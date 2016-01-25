@@ -28,11 +28,18 @@ namespace lisp {
 	using std::runtime_error::runtime_error;
   };  
 
+  std::ostream& operator<<(std::ostream& out, const nil& );  
+  std::ostream& operator<<(std::ostream& out, const string& s);
+  std::ostream& operator<<(std::ostream& out, const lambda& f);
+  std::ostream& operator<<(std::ostream& out, const environment& e);  
   
   class environment_type : std::map<symbol, value> {
 	environment parent;
   public:
 
+	using environment_type::map::find;
+	using environment_type::map::end;	
+	
 	environment_type(environment parent = nullptr) : parent(parent) { }
 	
 	template<class SIterator, class VIterator>

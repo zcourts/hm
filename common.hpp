@@ -10,7 +10,7 @@ template<class T>
 using ref = std::shared_ptr<T>;
 
 template<class T>
-static ref<T> shared(const T& x) {
+static ref<T> shared(const T& x = {}) {
   return std::make_shared<T>(x);
 }
 

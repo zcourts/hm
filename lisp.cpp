@@ -4,27 +4,39 @@
 
 namespace lisp {
 
+  // this will be useful
+  static error unimplemented("unimplemented");
 
+  
   // special forms
-  value eval_define(environment env, const sexpr::list& list);
-  value eval_lambda(environment env, const sexpr::list& list);
-  value eval_quote(environment env, const sexpr::list& list);
-  value eval_if(environment env, const sexpr::list& list);
-  value eval_begin(environment env, const sexpr::list& list);
-  value eval_set(environment env, const sexpr::list& list);          
+  static value eval_define(environment env, const sexpr::list& list);
+  static value eval_lambda(environment env, const sexpr::list& list);
+  static value eval_quote(environment env, const sexpr::list& list);
+  static value eval_cond(environment env, const sexpr::list& list);
+  static value eval_begin(environment env, const sexpr::list& list);
+  static value eval_set(environment env, const sexpr::list& list);          
 
   // prototype
   using special_form = value (*) (environment env, const sexpr::list& list);
   
   // TODO import ?
 
+  static struct {
+	std::string define = "define";
+	std::string lambda = "lambda";
+	std::string quote = "quote";
+	std::string begin = "begin";
+	std::string cond = "cond";
+	std::string set = "set!";
+  } keyword;
+  
   static std::map<std::string, special_form> special = {
-	{"define", eval_define},
-	{"lambda", eval_lambda},
-	{"quote", eval_quote},   	
-	{"if", eval_if},
-	{"begin", eval_begin},
-	{"set!", eval_set}
+	{keyword.define, eval_define},
+	{keyword.lambda, eval_lambda},
+	{keyword.quote, eval_quote},   	
+	{keyword.cond, eval_cond},
+	{keyword.begin, eval_begin},
+	{keyword.set, eval_set}
   };
 
 
@@ -65,9 +77,10 @@ namespace lisp {
 
 
   struct evaluate {
-	
-	value operator()(const sexpr::list& self, environment env) const {
 
+	// lists
+	value operator()(const sexpr::list& self, environment env) const {
+	  
 	  if( self.empty() ) throw error("empty list in application");
 
 	  // try special forms
@@ -82,12 +95,28 @@ namespace lisp {
 	  return func.apply<value>( apply(), env, self );
 	}
 
-	// 
+	// wrap strings
 	value operator()(const sexpr::string& self, environment env) const {
 	  return shared(self);
 	}
-	
 
+	// variables
+	value operator()(const symbol& self, environment env) const {
+
+	  {
+		auto it = special.find( self );
+		if( it != special.end() ) throw error("reserved keyword");
+	  }
+
+	  auto it = env->find( self );
+	  if( it == env->end() ) {
+		throw error("unknown variable");
+	  }
+
+	  return it->second;
+	}
+	
+	
 	// all the rest is returned as is
 	template<class T>
 	value operator()(const T& self, environment env) const {
@@ -101,32 +130,79 @@ namespace lisp {
 	return expr.apply<value>(evaluate(), env);
   }
   
+  // special forms
+  static value eval_define(environment env, const sexpr::list& list) {
+	throw unimplemented;
+  }
+  
+  static value eval_lambda(environment env, const sexpr::list& list) {
+	assert(!list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.lambda);
+	
+	if( list.size() != 3 ) {
+	  throw error("bad lambda syntax");
+	}
 
-  static error unimplemented("unimplemented");
+	// TODO varargs
+	if( !list[1].is<sexpr::list>() ) {
+	  throw error("expected variable list for lambda");
+	}
+
+	lambda res = shared<lambda_type>();
+
+	// args
+	for(const auto& s : list[1].as<sexpr::list>() ) {
+	  if( !s.is<symbol>() ) {
+		throw error("variable names must be symbols");
+	  } else {
+		res->args.push_back( s.as<symbol>() );
+	  }
+	}
+
+	// body
+	res->body = list[2];
+
+	// environment
+	res->env = env;
+
+	return res;
+  }
   
-  value eval_define(environment env, const sexpr::list& list) {
+  static value eval_quote(environment env, const sexpr::list& list) {
 	throw unimplemented;
   }
   
-  value eval_lambda(environment env, const sexpr::list& list) {
+  static value eval_cond(environment env, const sexpr::list& list) {
 	throw unimplemented;
   }
   
-  value eval_quote(environment env, const sexpr::list& list) {
+  static value eval_begin(environment env, const sexpr::list& list) {
 	throw unimplemented;
   }
   
-  value eval_if(environment env, const sexpr::list& list) {
+  static value eval_set(environment env, const sexpr::list& list) {
 	throw unimplemented;
+  }
+
+
+
+  // output
+  std::ostream& operator<<(std::ostream& out, const nil& ) {
+	return out << "'()";
   }
   
-  value eval_begin(environment env, const sexpr::list& list) {
-	throw unimplemented;
+  std::ostream& operator<<(std::ostream& out, const string& s) {
+	return out << *s;
   }
   
-  value eval_set(environment env, const sexpr::list& list) {
-	throw unimplemented;
+  std::ostream& operator<<(std::ostream& out, const lambda& f) {
+	return out << "#<lambda>";
   }
+
+  std::ostream& operator<<(std::ostream& out, const environment& e) {
+	return out << "#<environment>";
+  }
+
+
   
 }
 
