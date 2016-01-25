@@ -31,7 +31,7 @@ struct sexpr_parser {
 	std::stringstream ss(line);
 	
 	try {
-	  sexpr::list prog = parse(ss);
+	  const sexpr::list prog = parse(ss);
 	  handler(prog);
 	} catch( parse_error& e ) {
 	  std::cerr << "parse error: " << e.what() << std::endl;
@@ -41,14 +41,35 @@ struct sexpr_parser {
 
 };
 
+
 struct lisp_handler {
   mutable lisp::environment env = shared<lisp::environment_type>();
 
+  lisp_handler() {
+	using namespace lisp;
+	
+	(*env)[ symbolize("+") ] = builtin( [](environment, vec<value>&& args) -> value {
+	  real res = 0;
+
+	  for(const auto& v : args) {
+		if( v.is<real>() ) res += v.as<real>();
+		if( v.is<int>() ) res += v.as<int>();
+	  }
+
+	  return res;
+	  });
+
+  }
+  
   void operator()(const sexpr::list& prog) const {
 	try {
 	  
 	  for(const auto& s : prog) {
-		std::cout << lisp::eval(env, s) << std::endl;
+		const lisp::value res = lisp::eval(env, s);
+
+		if(!res.is<lisp::nil>()) {
+		  std::cout << res << std::endl;
+		}
 	  }
 	  
 	} catch( lisp::error& e) {
@@ -65,7 +86,7 @@ struct hm_handler {
   void operator()(const sexpr::list& prog) const {
 	try {
 	  for(const sexpr::expr& s : prog ) {
-		ast::node e = transform( s );
+		const ast::node e = transform( s );
 
 		if( e.is<ast::expr>() ) {
 		  type::poly p = hindley_milner(ctx, e.as<ast::expr>());

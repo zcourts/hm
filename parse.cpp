@@ -57,10 +57,6 @@ struct reporter {
 };
 
 
-static std::set<std::string> symbol_table;
-static symbol make_symbol(const std::string& s) {
-  return symbol_table.insert(s).first->c_str();
-}
 
 
 template<class Iterator>
@@ -76,7 +72,7 @@ static sexpr::list parse(Iterator first, Iterator last) {
   
   using skip_type = decltype(skip);
 
-  qi::rule<Iterator, skip_type, sexpr::expr()> atom,  symbol, integer, real, string, boolean, t, f, expr;
+  qi::rule<Iterator, skip_type, sexpr::expr()> atom, symbol, integer, real, string, boolean, t, f, expr;
   qi::rule<Iterator, skip_type, sexpr::list()> list, seq, start;
   
   integer = qi::int_;
@@ -93,7 +89,7 @@ static sexpr::list parse(Iterator first, Iterator last) {
   string = qi::lexeme[db_quote >> qi::as_string[*(~db_quote)][_val = _1] >> db_quote];
 
   const std::string exclude = std::string(" ();\"\x01-\x1f\x7f") + '\0';  
-  symbol = (as_string[ lexeme[+(~qi::char_(exclude))] ])[ _val = bind(&make_symbol, _1) ];
+  symbol = (as_string[ lexeme[+(~qi::char_(exclude))] ])[ _val = bind(&symbolize, _1) ];
   
   seq = (*expr);
 

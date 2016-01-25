@@ -4,7 +4,9 @@
 #include <memory>
 #include <vector>
 
+
 using symbol = const char*;
+symbol symbolize(const std::string& );
 
 template<class T>
 using ref = std::shared_ptr<T>;

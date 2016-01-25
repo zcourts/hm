@@ -44,6 +44,19 @@ namespace lisp {
   // parameter
   struct apply {
 
+	template<class Iterator>
+	static vec<value> eval_each(environment env, Iterator first, Iterator last) {
+	  vec<value> args;
+	  args.reserve(last - first);
+
+	  std::transform(first, last, std::back_inserter(args), [env](const sexpr::expr& e) {
+		  return eval(env, e);
+		});
+
+	  return args;
+	}
+
+	
 	// lambda application
 	value operator()(const lambda& func, environment env, const sexpr::list& self) const {
 	  assert( !self.empty() );
@@ -52,14 +65,11 @@ namespace lisp {
 	  assert(func->args.size() == self.size() - 1);
 	  
 	  // evaluate args
-	  vec<value> args;
-	  args.reserve( self.size() - 1);
-	  
-	  std::transform(self.begin() + 1, self.end(),
-					 std::back_inserter(args), [env](const sexpr::expr& e) {
-					   return eval(env, e);
-					 });
+	  vec<value> args = eval_each(env, self.begin() + 1, self.end());
 
+	  // TODO use an iterator that evaluates on demand to avoid
+	  // temporary?
+	  
 	  // augment environment from args 
 	  environment sub = env->augment(func->args.begin(), func->args.end(),
 									 args.begin(), args.end());
@@ -67,6 +77,16 @@ namespace lisp {
 	  return eval(sub, func->body);
 	}
 
+
+	value operator()(const builtin& func, environment env, const sexpr::list& self) const {
+
+	  // eval arguments
+	  vec<value> args = eval_each(env, self.begin() + 1, self.end() );
+
+	  // call builtin
+	  return func.ptr(env, std::move(args));
+	}
+	
 
 	template<class T>
 	value operator()(const T& func, environment env, const sexpr::list& self) const {
@@ -85,7 +105,7 @@ namespace lisp {
 
 	  // try special forms
 	  if( self[0].is<symbol>() ) {
-		auto it = special.find(self[0].as<symbol>() );
+		auto it = special.find( self[0].as<symbol>() );
 
 		if( it != special.end() ) return it->second(env, self);
 	  }
@@ -95,6 +115,7 @@ namespace lisp {
 	  return func.apply<value>( apply(), env, self );
 	}
 
+	
 	// wrap strings
 	value operator()(const sexpr::string& self, environment env) const {
 	  return shared(self);
@@ -130,14 +151,34 @@ namespace lisp {
   value eval(environment env, sexpr::expr expr) {
 	return expr.apply<value>(evaluate(), env);
   }
+
+
+  static bool check_special(const sexpr::list& list, const std::string& name) {
+	return !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == name;
+  }
+
   
   // special forms
   static value eval_define(environment env, const sexpr::list& list) {
-	throw unimplemented;
+	assert( check_special(list, keyword.define) );
+
+	if( list.size() != 3 ) {
+	  throw error("bad define syntax");
+	}
+
+	if( !list[1].is<symbol>() ) {
+	  throw error("symbol expected for variable name");
+	}
+
+	// TODO eval first ?
+	(*env)[ list[1].as<symbol>() ] = eval(env, list[2]);
+	
+	return nil{};
   }
+
   
   static value eval_lambda(environment env, const sexpr::list& list) {
-	assert(!list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.lambda);
+	assert( check_special(list, keyword.lambda));
 	
 	if( list.size() != 3 ) {
 	  throw error("bad lambda syntax");
@@ -167,18 +208,22 @@ namespace lisp {
 
 	return res;
   }
+
   
   static value eval_quote(environment env, const sexpr::list& list) {
 	throw unimplemented;
   }
+
   
   static value eval_cond(environment env, const sexpr::list& list) {
 	throw unimplemented;
   }
+
   
   static value eval_begin(environment env, const sexpr::list& list) {
 	throw unimplemented;
   }
+
   
   static value eval_set(environment env, const sexpr::list& list) {
 	throw unimplemented;
@@ -188,7 +233,7 @@ namespace lisp {
 
   // output
   std::ostream& operator<<(std::ostream& out, const nil& ) {
-	return out << "'()";
+	return out << "nil";
   }
   
   std::ostream& operator<<(std::ostream& out, const string& s) {
@@ -199,11 +244,15 @@ namespace lisp {
 	return out << "#<lambda>";
   }
 
+  std::ostream& operator<<(std::ostream& out, const builtin& f) {
+	return out << "#<builtin>";
+  }
+  
   std::ostream& operator<<(std::ostream& out, const environment& e) {
 	return out << "#<environment>";
   }
 
-
+  
   
 }
 
