@@ -83,13 +83,14 @@ struct specialize {
   struct monotype {
 
 	// replace variables given substitution
-	type::mono operator()(const type::var& self, const specialize& parent, substitution&& s) const {
+	type::mono operator()(const type::var& self, const specialize& , substitution&& s) const {
 	  auto it = s.find(self);
 
 	  if( it != s.end() ) return it->second;
 	  else return self;
 	}
 
+	
 	type::mono operator()(const type::app& self, const specialize& parent, substitution&& s) const {
 	  // TODO should we make new substitutions ?
 	  // TODO should we dsets.find first ?
@@ -104,7 +105,7 @@ struct specialize {
 	  return res;
 	}
 
-	type::mono operator()(const type::lit& self, const specialize& parent, substitution&& s) const {
+	type::mono operator()(const type::lit& self, const specialize& , substitution&& ) const {
 	  return self;
 	}
 	
@@ -315,7 +316,7 @@ struct algorithm_w {
   
   // litterals: constant types
   template<class T>
-  type::mono operator()(const ast::lit<T>& lit, context& c) const {
+  type::mono operator()(const ast::lit<T>& , context& ) const {
 	type::mono res = traits<T>::type();
 	types.add(res);
 	return res;

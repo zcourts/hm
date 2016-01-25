@@ -72,6 +72,11 @@ namespace impl {
 
 }
 
+
+// TODO move constructors/assignement
+// TODO safe bool cast
+// TODO remove stream operators ?
+
 template<class ... Types>
 class variant {
 
