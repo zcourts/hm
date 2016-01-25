@@ -65,7 +65,7 @@ namespace impl {
   
 	friend constexpr unsigned get(index_of) {
 	  static_assert( error<T>::value, "type does not belong to variant");
-	  return -1;
+	  return sizeof(T);
 	}
 
   };
@@ -104,7 +104,7 @@ class variant {
 	}
 
 	template<class T>
-	void operator()(T&, const From& other) const {
+	void operator()(T&, const From& ) const {
 	  throw std::logic_error("should never be called");
 	}
 	

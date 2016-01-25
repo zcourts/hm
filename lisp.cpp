@@ -29,6 +29,7 @@ namespace lisp {
 	std::string cond = "cond";
 	std::string set = "set!";
   } keyword;
+
   
   static std::map<std::string, special_form> special = {
 	{keyword.define, eval_define},
@@ -40,10 +41,10 @@ namespace lisp {
   };
 
 
-  // note: first expr in self has been evaluated as the first
-  // parameter
+  // first expr in self has been evaluated, passed as the first
+  // parameter with correct type
   struct apply {
-
+	
 	template<class Iterator>
 	static vec<value> eval_each(environment env, Iterator first, Iterator last) {
 	  vec<value> args;
@@ -62,7 +63,9 @@ namespace lisp {
 	  assert( !self.empty() );
 
 	  // TODO varargs
-	  assert(func->args.size() == self.size() - 1);
+	  if(func->args.size() != self.size() - 1) {
+		throw error("bad argument count");
+	  }
 	  
 	  // evaluate args
 	  vec<value> args = eval_each(env, self.begin() + 1, self.end());
@@ -89,7 +92,7 @@ namespace lisp {
 	
 
 	template<class T>
-	value operator()(const T& func, environment env, const sexpr::list& self) const {
+	value operator()(const T& , environment , const sexpr::list& ) const {
 	  throw error("invalid type in application");
 	}
 
@@ -117,31 +120,29 @@ namespace lisp {
 
 	
 	// wrap strings
-	value operator()(const sexpr::string& self, environment env) const {
+	value operator()(const sexpr::string& self, environment ) const {
 	  return shared(self);
 	}
 
 	// variables
 	value operator()(const symbol& self, environment env) const {
 
-	  // TODO check this during expand phase
+	  // TODO check this during canonicalize
 	  {
 		auto it = special.find( self );
 		if( it != special.end() ) throw error("reserved keyword");
 	  }
 
-	  auto it = env->find( self );
-	  if( it == env->end() ) {
-		throw error("unknown variable");
-	  }
+	  return env->find( self, [self] {
+		  throw error("unknown variable: " + std::string(self) );
+		});
 
-	  return it->second;
 	}
 	
 	
 	// all the rest is returned as is
 	template<class T>
-	value operator()(const T& self, environment env) const {
+	value operator()(const T& self, environment ) const {
 	  return self;
 	}
 	
@@ -209,14 +210,58 @@ namespace lisp {
 	return res;
   }
 
+
+
+  struct quote {
+
+	template<class T>
+	value operator()(const T& self) const {
+	  return self;
+	}
+
+	// wrapped
+	value operator()(const std::string& self) const {
+	  return shared(self);
+	}
+
+	value operator()(const sexpr::list& self) const {
+	  return shared(self);
+	}
+	
+  };
   
-  static value eval_quote(environment env, const sexpr::list& list) {
-	throw unimplemented;
+  static value eval_quote(environment , const sexpr::list& list) {
+	assert( check_special(list, keyword.quote));
+
+	if(list.size() != 2) {
+	  throw error("bad quote syntax");
+	}
+
+	return list[1].apply<value>(quote());
   }
 
-  
+
   static value eval_cond(environment env, const sexpr::list& list) {
-	throw unimplemented;
+	assert( check_special(list, keyword.cond));
+
+	for(unsigned i = 1, n = list.size(); i < n; ++i) {
+	  
+	  if(!list[i].is<sexpr::list>() || list[i].as<sexpr::list>().size() != 2) {
+		throw error("condition should be a pair");
+	  }
+
+	  auto& cond = list[i].as<sexpr::list>();
+
+	  // TODO handle else during canonicalize
+	  const value res = eval(env, cond[0]);
+	  
+	  // only false evaluates to false
+	  const bool fail = res.is<bool>() && !res.as<bool>();
+
+	  if(!fail) return eval(env, cond[1]);
+	}
+	
+	return nil{};
   }
 
   
@@ -231,28 +276,43 @@ namespace lisp {
 
 
 
-  // output
-  std::ostream& operator<<(std::ostream& out, const nil& ) {
-	return out << "nil";
-  }
-  
-  std::ostream& operator<<(std::ostream& out, const string& s) {
-	return out << *s;
-  }
-  
-  std::ostream& operator<<(std::ostream& out, const lambda& f) {
-	return out << "#<lambda>";
-  }
+  struct stream {
+	
+	void operator()(const nil& self, std::ostream& out) const {
+	  out << "nil";
+	}
 
-  std::ostream& operator<<(std::ostream& out, const builtin& f) {
-	return out << "#<builtin>";
-  }
-  
-  std::ostream& operator<<(std::ostream& out, const environment& e) {
-	return out << "#<environment>";
-  }
+	template<class T>
+	void operator()(const T& self, std::ostream& out) const {
+	  out << self;
+	}
+	
+	void operator()(const string& s, std::ostream& out) const {
+	  out << *s;
+	}
 
+	void operator()(const list& x, std::ostream& out) const {
+	  out << *x;
+	}
+
+	// TODO context ?
+	void operator()(const lambda&, std::ostream& out ) const {
+	  out << "#<lambda>";
+	}
   
+	void operator()(const builtin&, std::ostream& out ) const {
+	 out << "#<builtin>";
+	}
+  
+	void operator()(const environment&, std::ostream& out ) const {
+	  out << "#<environment>";
+	}
+  };
+	
+  std::ostream& operator<<(std::ostream& out, const value& x) {
+	x.apply( stream(), out);
+	return out;
+  }
   
 }
 

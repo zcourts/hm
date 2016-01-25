@@ -24,23 +24,39 @@
 #include "repl.hpp"
 #include "lisp.hpp"
 
+#include <fstream>
+
 struct sexpr_parser {
   std::function< void (const sexpr::list& prog ) > handler;
 
   void operator()( const char* line ) const {
 	std::stringstream ss(line);
-	
+	(*this)(ss);
+  }
+  
+  void operator()( std::istream& in) const {
 	try {
-	  const sexpr::list prog = parse(ss);
+	  const sexpr::list prog = parse(in);
 	  handler(prog);
 	} catch( parse_error& e ) {
 	  std::cerr << "parse error: " << e.what() << std::endl;
 	}
-	
   }
 
 };
 
+
+struct number {
+
+  inline lisp::real operator()(const lisp::real& x) const { return x; }
+  inline lisp::real operator()(const int& x) const { return x; }
+
+  template<class T>
+  inline lisp::real operator()(const T& ) const {
+	throw lisp::error("number expected");
+  }
+  
+};
 
 struct lisp_handler {
   mutable lisp::environment env = shared<lisp::environment_type>();
@@ -54,13 +70,23 @@ struct lisp_handler {
 		real res = 0;
 
 		for(const auto& v : args) {
-		  if( v.is<real>() ) res += v.as<real>();
-		  else if( v.is<int>() ) res += v.as<int>();
-		  else throw error("bad argument type");
+		  res += v.apply<real>( number() );
 		}
 
 		return res;
 	  });
+
+	(*env)[ symbolize("=") ] = builtin( [](environment, vec<value>&& args) -> value {
+		if(args.size() < 2) throw error("2+ args expected");
+
+		const real value = args[0].apply<real>(number());
+
+		for(unsigned i = 1, n = args.size(); i < n; ++i) {
+		  if( value != args[i].apply<real>(number()) ) return false;
+		}
+		  
+		return true;
+	  });	
 
 	(*env)[ symbolize("-") ] = builtin( [](environment, vec<value>&& args) -> value {
 		if(args.empty()) throw error("1+ args expected");
@@ -70,9 +96,8 @@ struct lisp_handler {
 		unsigned i = 0;
 		for(const auto& v : args) {
 
-		  if( v.is<real>() ) { res = i? res - v.as<real>() : v.as<real>(); }
-		  else if( v.is<int>() ) { res = i? res - v.as<int>() : v.as<int>(); }
-		  else throw error("bad argument type");
+		  const real n = v.apply<real>(number());
+		  res = i ? res - n : n;
 
 		  ++i;
 		}
@@ -86,6 +111,7 @@ struct lisp_handler {
 	try {
 	  
 	  for(const auto& s : prog) {
+		std::cout << s << std::endl;
 		const lisp::value res = lisp::eval(env, s);
 
 		if(!res.is<lisp::nil>()) {
@@ -148,14 +174,22 @@ struct hm_handler {
 
 
 
-int main() {
-
+int main(int argc, const char* argv[] ) {
+  
   std::cout << std::boolalpha;
   
   sexpr_parser handler = { lisp_handler{} };
   // sexpr_parser handler = { hm_handler{} };  
-  
-  repl::loop( handler );
+
+  if( argc > 1) {
+	std::ifstream file(argv[1]);
+	if( !file ) throw std::runtime_error("file not found");
+
+	handler( file );
+	
+  } else {
+	repl::loop( handler );
+  }
   
   return 0;
 }

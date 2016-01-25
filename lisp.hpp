@@ -9,11 +9,12 @@ namespace lisp {
 
   using real = sexpr::real;
   using string = ref<sexpr::string>;
-
+  using list = ref<sexpr::list>;
+  
   struct lambda_type;
   using lambda = ref<lambda_type>;
   
-  struct environment_type;
+  class environment_type;
   using environment = ref<environment_type>;
 
   struct builtin;
@@ -21,7 +22,7 @@ namespace lisp {
   struct nil { };
 
   // TODO boost::intrusive_ptr instead of ref<> and make it 2 words
-  using value = variant<nil, bool, int, real, symbol, string, lambda, environment, builtin>;
+  using value = variant<nil, bool, int, real, symbol, string, list, lambda, environment, builtin>;
 
   struct builtin {
 	using type = value (*)(environment env, vec<value>&& args);
@@ -35,16 +36,12 @@ namespace lisp {
 
   struct error : std::runtime_error {
 	using std::runtime_error::runtime_error;
-  };  
+  };
 
-  std::ostream& operator<<(std::ostream& out, const nil& );  
-  std::ostream& operator<<(std::ostream& out, const string& s);
-  std::ostream& operator<<(std::ostream& out, const lambda& f);
-  std::ostream& operator<<(std::ostream& out, const environment& e);
-  std::ostream& operator<<(std::ostream& out, const builtin& f);  
-  
+  std::ostream& operator<<(std::ostream& out, const value& );
+
   class environment_type : public std::enable_shared_from_this<environment_type>,
-						   public std::map<symbol, value> {
+						   protected std::map<symbol, value> {
 	environment parent;
   public:
 
@@ -65,6 +62,23 @@ namespace lisp {
 
 	  return res;
 	}
+
+
+	template<class Fail>
+	inline const mapped_type& find(key_type key, Fail&& fail = {} ) const {
+	  
+	  auto it = environment_type::map::find(key);
+	  if( it != end() ) {
+		return it->second;
+	  }
+
+	  if( !parent ) fail();
+
+	  return parent->find(key, std::forward<Fail>(fail));
+	}
+
+	using environment_type::map::operator[];
+	
 	
   };
 
@@ -75,7 +89,10 @@ namespace lisp {
   };
 
 
-  // eval
+  // transform expression to canonical form
+  sexpr::expr canonicalize(sexpr::expr expr);
+  
+  // evaluates a sexpr in canonical form
   value eval(environment env, sexpr::expr expr);
 
   
