@@ -35,6 +35,8 @@ int main() {
 
   const char* line;
 
+  std::cout << std::boolalpha;
+  
   context c;  
   while( (line = getline("> ")) ) {
 	try {
@@ -69,12 +71,17 @@ int main() {
 		}
 	  }
 	}
+	catch( parse_error& e ) {
+	  std::cerr << "parse error: " << e.what() << std::endl;
+	}	
 	catch( syntax_error& e ) {
 	  std::cerr << "syntax error: " << e.what() << std::endl;
 	}
-	catch( parse_error& e ) {
-	  std::cerr << "parse error: " << e.what() << std::endl;
+	catch( type_error& e ) {
+	  std::cerr << "type error: " << e.what() << std::endl;
 	}
+
+	
   }
 
   // debug();

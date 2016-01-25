@@ -202,11 +202,20 @@ template<> struct traits<int> {
   }
 };
 
+template<> struct traits<bool> {
+
+  static type::lit type() {
+	return {"bool"};
+  }
+};
+
 template<> struct traits<void> {
   
   static type::lit type() {
 	return {"void"};
   }
+
+  
 };
 
 

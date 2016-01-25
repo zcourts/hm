@@ -7,7 +7,6 @@
 #include "sexpr.hpp"
 
 struct syntax_error : std::runtime_error {
-  // syntax_error(const std::string& what);
   using std::runtime_error::runtime_error;
 };
 

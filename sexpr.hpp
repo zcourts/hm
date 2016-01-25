@@ -10,10 +10,13 @@
 namespace sexpr {
 
   struct list;
-
+  
+  using string = std::string;
+  using real = double;
+  
   // TODO string, number
-  using expr = variant< list, symbol, int >;
-
+  using expr = variant< list, symbol, real, int, bool, string >;
+  
   struct list : vec<expr> {
 	using vec<expr>::vec;
 

@@ -30,14 +30,28 @@ static ast::var transform_var(const sexpr::expr& e);
 
 struct match_expr {
 
-  ast::expr operator()(const int& self) const {
-	return ast::lit<int>{self};
-  }
 
   ast::expr operator()(const symbol& self) const {
 	return transform_var(self);
   }
 
+
+  ast::expr operator()(const int& self) const {
+	return ast::lit<int>{self};
+  }
+
+  ast::expr operator()(const bool& self) const {
+	return ast::lit<bool>{self};
+  }
+
+  
+  template<class T>
+  ast::expr operator()(const T& self) const {
+	throw syntax_error("unimplemented");
+  }
+  
+
+  
   ast::expr operator()(const sexpr::list& self) const {
 
 	if( self.empty() ) {
@@ -79,6 +93,8 @@ struct match_expr {
 	// TODO ref in func/args 
 	return ast::app{ shared(terms[0]), shared(terms[1]) };
   }
+
+
   
 };
 

@@ -14,7 +14,7 @@ namespace ast {
   struct app;					// applications
   struct let;					// local defintions
   
-  using expr = variant< lit<void>, lit<int>, var, abs, app, let >;
+  using expr = variant< lit<void>, lit<int>, lit<bool>, var, abs, app, let >;
   
   template<class T>
   struct lit {
@@ -22,7 +22,7 @@ namespace ast {
   };
 
   template<> struct lit<void> { };
-  
+
   struct var {
 	symbol name;
 	inline bool operator<(const var& other) const {
