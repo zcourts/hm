@@ -2,22 +2,36 @@
 
 namespace sexpr {
 
-  std::ostream& operator<<(std::ostream& out, const list& x) {
-	out << '(';
-	
-	bool first = true;
-	for(const auto& xi : x) {
-	  if(!first) {
-		out << ' ';
-	  } else {
-		first = false;
-	  }
-	  out << xi;
+  struct stream {
+
+	template<class T>
+	void operator()(const T& self, std::ostream& out) const {
+	  out << self;
 	}
-	out << ')';
+
+	void operator()(const list& self, std::ostream& out) const {
+	  out << '(';
 	
+	  bool first = true;
+	  for(const auto& xi : self) {
+		if(!first) {
+		  out << ' ';
+		} else {
+		  first = false;
+		}
+		out << xi;
+	  }
+	  out << ')';
+	}
+	
+  };
+
+
+  std::ostream& operator<<(std::ostream& out, const expr& e) {
+	e.apply( stream(), out );
 	return out;
   }
-
+  
+ 
 
 }

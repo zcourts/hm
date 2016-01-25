@@ -22,10 +22,6 @@ namespace type {
 	inline bool operator<(const lit& other) const { return name < other.name; }
 	inline bool operator==(const lit& other) const { return name == other.name; }
 
-	inline friend std::ostream& operator<< (std::ostream& out, const lit& t ) {
-	  return out << t.name;
-	}
-	
   };
 
   
@@ -38,8 +34,6 @@ namespace type {
 	inline bool operator<(const var& other) const { return index < other.index; }
 	inline bool operator==(const var& other) const { return index == other.index; }
 	inline bool operator!=(const var& other) const { return index != other.index; }	
-
-	friend std::ostream& operator<< (std::ostream& out, const var& t);
 	
   };
 
@@ -50,7 +44,6 @@ namespace type {
 	bool operator<(const app& other) const;
 	bool operator==(const app& other) const;
 	
-	friend std::ostream& operator<< (std::ostream& out, const app& t);
   };
 
   
@@ -64,11 +57,9 @@ namespace type {
   struct forall {
 	vec<var> args;
 	ref<poly> body;
-
-	friend std::ostream& operator<< (std::ostream& out, const forall& t);
   };
 
-
+  std::ostream& operator<<(std::ostream& out, const poly& p);
 }
 
 

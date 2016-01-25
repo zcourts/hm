@@ -8,25 +8,6 @@ namespace type {
   
   unsigned var::total = 0;
 
-  // TODO we should protect this with mutexes
-  static std::map< std::ostream*, std::map<type::var, unsigned> > context;
-  
-  std::ostream& operator<< (std::ostream& out, const var& t) {
-
-	auto it = context.find(&out);
-	if(it != context.end() ) {
-
-	  auto id = it->second.find(t);
-
-	  if( id != it->second.end() && ('a' + id->second) < 'z' ) {
-		return out << '\'' << (char)('a' + id->second);
-	  } 
-	}
-	
-	return out << "'type-" << t.index;
-	
-  }
-
   bool app::operator<(const app& other) const {
 	return  (*from < *other.from) || ((*from == *other.from) && (*to < *other.to));
   }
@@ -36,37 +17,69 @@ namespace type {
 	return  (*from == *other.from) && (*to == *other.to);
   }
 
+  struct stream {
 
-  std::ostream& operator<< (std::ostream& out, const app& t) {
+	mutable std::map<type::var, unsigned> context;
 
-	const bool is_from_app = t.from->is< app >();
-	const bool is_to_app = t.to->is< app >();
-	  
-	return
-	  out << (is_from_app ? "(" : "") << *t.from << (is_from_app ? ")" : "")
-		  << " -> "
-	  // TODO maybe we don't have to parentize on the right
-		  << (is_to_app ? "(" : "") << *t.to << (is_to_app ? ")" : "")
-	  ;
-  }
+	// quantified
+	void operator()(const forall& self, std::ostream& out) const {
+	 
+	  // add stuff to context
+	  for(unsigned i = 0, n = self.args.size(); i < n; ++i) {
+		context[self.args[i]] = context.size();
+	  }
 
-  
-  std::ostream& operator<< (std::ostream& out, const forall& t) {
+	  self.body->apply(*this, out);
+	}
 
-	auto ins = context.insert( {&out, {} } );
-	auto& index = ins.first->second;
-	
-	// add stuff to context
-	for(unsigned i = 0, n = t.args.size(); i < n; ++i) {
-	  index[t.args[i]] = index.size();
+	void operator()(const mono& self, std::ostream& out) const {
+	  self.apply(*this, out);
+	}
+
+	void operator()(const app& self, std::ostream& out) const {
+	  const bool is_from_app = self.from->is< app >();
+	  const bool is_to_app = self.to->is< app >();
+
+	  out << (is_from_app ? "(" : "");
+	  self.from->apply(*this, out);
+	  out << (is_from_app ? ")" : "");
+
+	  out << " -> ";
+
+	  // TODO maybe we don't have to parentize on the right	  
+	  out << (is_to_app ? "(" : "");
+	  self.to->apply(*this, out);
+	  out << (is_to_app ? ")" : "")
+		;
+	}
+
+
+	void operator()(const lit& self, std::ostream& out) const {
+	  out << self.name;
+	}
+
+
+	void operator()(const var& self, std::ostream& out) const {
+	  auto id = context.find(self);
+
+	  if( id != context.end() && ('a' + id->second) < 'z' ) {
+		out << '\'' << (char)('a' + id->second);
+	  } else { 
+		out << "'type-" << self.index;
+	  }
 	}
 	
-	out << *t.body;
+  };
 
-	// insertion was successful, we must cleanup
-	if( ins.second ) context.erase(ins.first);
-	
+
+   
+
+  
+  
+  std::ostream& operator<< (std::ostream& out, const poly& p) {
+	p.apply( stream(), out );
 	return out;
   }
+
 
 }

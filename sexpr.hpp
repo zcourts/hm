@@ -24,9 +24,10 @@ namespace sexpr {
 	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }  
 	list() {}
 	
-	friend std::ostream& operator<<(std::ostream& out, const list& x);
   };
 
+  std::ostream& operator<<(std::ostream& out, const expr& e);
+  
 }
 
 

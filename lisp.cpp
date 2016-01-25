@@ -292,6 +292,8 @@ namespace lisp {
 	}
 
 	void operator()(const list& x, std::ostream& out) const {
+	  // not quite sure why clang needs this...
+	  using sexpr::operator<<;
 	  out << *x;
 	}
 

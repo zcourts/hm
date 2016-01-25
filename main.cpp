@@ -178,7 +178,7 @@ int main(int argc, const char* argv[] ) {
   
   std::cout << std::boolalpha;
   
-  sexpr_parser handler = { lisp_handler{} };
+  sexpr_parser handler = { hm_handler{} };
   // sexpr_parser handler = { hm_handler{} };  
 
   if( argc > 1) {
