@@ -100,30 +100,39 @@ class variant {
   };
 
 
-  template<class From>
+  // TODO deal with alignment  
   struct construct {
 
-	// TODO deal with alignment
-	void operator()(From& self, const From& other) const {
-	  new((void*)&self) From(other);
+	template<class T>
+	inline void operator()(T& self, const T& other) const {
+	  new((void*)&self) T(other);
 	}
 
 	template<class T>
-	void operator()(T&, const From& ) const {
+	inline void operator()(T& self, T&& other) const {
+	  new((void*)&self) T( std::move(other));
+	}
+
+	template<class T>
+	inline void operator()(T& self, const variant& other) const {
+	  assert(other.id == type_index<T>());
+	  (*this)(self, other.unsafe<T>() );
+	}
+
+	template<class T>
+	inline void operator()(T& self, variant&& other) const {
+	  assert(other.id == type_index<T>());
+	  (*this)(self, std::move(other.unsafe<T>()) );
+	}
+	
+	
+	template<class T, class U>
+	inline void operator()(T&, U&& ) const {
 	  throw std::logic_error("should never be called");
 	}
 	
   };
   
-
-  struct copy_construct {
-
-	template<class T>
-	void operator()(T& self, const variant& other) const {
-	  construct<T>()(self, other.as<T>());
-	}
-	
-  };
 
   struct equals {
 
@@ -154,24 +163,41 @@ class variant {
   };
   
 
-  struct copy_assign {
+  struct assign {
 
 	template<class T>
 	void operator()(T& self, const variant& other) const {
 	  self = other.as<T>();
 	}
+
+	template<class T>
+	void operator()(T& self, variant&& other) const {
+	  self = std::move( other.as<T>() );
+	}
+
+
+	template<class T>
+	void operator()(T& self, const T& other) const {
+	  self = other;
+	}
+
+	template<class T>
+	void operator()(T& self, T&& other) const {
+	  self = std::move( other );
+	}
 	
   };
 
   
+  
   template<class T, class Ret, class F, class ...Args>
   inline Ret apply_const_thunk(const F& f, Args&& ... args) const {
-	return f( as<T>(), std::forward<Args>(args)... );
+	return f( unsafe<T>(), std::forward<Args>(args)... );
   }
 
   template<class T, class Ret, class F, class ...Args>
   inline Ret apply_thunk(const F& f, Args&& ... args) {
-	return f( as<T>(), std::forward<Args>(args)... );
+	return f( unsafe<T>(), std::forward<Args>(args)... );
   }
 
   
@@ -180,18 +206,43 @@ class variant {
 
   template<class Ret, class F, class ... Args>
   using apply_type = Ret (variant::*)(const F&, Args&& ... );
+
+
+  // unsafe casts
+  template<class T>
+  inline T& unsafe() {
+	return *reinterpret_cast<T*>(data);
+  }
+
+  template<class T>
+  inline const T& unsafe() const {
+	return *reinterpret_cast<const T*>(data);
+  }
+
+  template<class T>
+  static constexpr unsigned type_index() {
+	return get( impl::index_of<T, variant>{} );
+  }
   
 public:
   
+  // TODO move construct from 
   template<class T>
-  variant(const T& other) : id( get( impl::index_of<T, variant>{} ) ) {
-	apply( construct<T>(), other );
+  variant(const T& other) : id( type_index<T>() ) {
+	apply( construct(), other );
   }
 
+  
   variant(const variant& other) : id(other.id) {
 	if( id == uninitialized ) return;
 
-	apply( copy_construct(), other);
+	apply( construct(), other);
+  }
+
+  variant(variant&& other) : id(other.id) {
+	if( id == uninitialized ) return;
+
+	apply( construct(), std::move(other));
   }
   
   ~variant() {
@@ -204,7 +255,6 @@ public:
   struct error : std::runtime_error {
 	error() : std::runtime_error("cast error")  { }
   };
-
 
   // TODO move assignement/constructors
   
@@ -223,44 +273,75 @@ public:
 
 	  // construct if needed
 	  if( other.id != uninitialized ) {
-		apply( copy_construct(), other );
+		apply( construct(), other );
 	  }
 	  
 	} else {
 
 	  // copy assign if needed
 	  if( id != uninitialized ) {
-		apply( copy_assign(), other);
+		apply( assign(), other);
 	  }
 
 	}
 
   	return *this;
   }
+
+
+  variant& operator=(variant&& other) {
+
+	// different types ?
+	if( id != other.id ) {
+
+	  // destroy if needed
+	  if( id != uninitialized ) {
+		apply( destruct() );
+	  }
+
+	  // destructed, now change type
+	  id = other.id;
+
+	  // construct if needed
+	  if( other.id != uninitialized ) {
+		apply( construct(), std::move(other));
+	  }
+	} else {
+
+	  //  move assign if needed
+	  if( id != uninitialized ) {
+		apply( assign(), std::move(other) );
+	  }
+
+	}
+
+  	return *this;
+
+  }
   
   
   // query
   template<class T>
-  bool is() const {
-	return id == get( impl::index_of<T, variant>{} );
+  inline bool is() const {
+	static constexpr unsigned type = type_index<T>();
+	return id == type;
   };
   
   // cast
   template<class T>
-  T& as() {
+  inline T& as() {
 	if( !is<T>() ) throw error();
 	return *reinterpret_cast<T*>(data);
   }
 
   template<class T>
-  const T& as() const {
+  inline const T& as() const {
 	if( !is<T>() ) throw error();
 	return *reinterpret_cast<const T*>(data);
   }
 
-  // TODO unsafe casts ?
   
-  bool operator<(const variant& other) const {
+  inline bool operator<(const variant& other) const {
 	// TODO do we want to compare uninitalized values ?
 	
 	if( id < other.id ) return true;

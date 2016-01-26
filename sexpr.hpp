@@ -21,9 +21,15 @@ namespace sexpr {
 	using vec<expr>::vec;
 
 	list(const vec<expr>& other) : vec<expr>(other) { }
-	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }  
+	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }
 	list() {}
-	
+
+	list(const list& other) = default;
+	list(list&& other) = default;
+
+
+	list& operator=(const list& other) = default;
+	list& operator=(list&& other) = default;	
   };
 
   std::ostream& operator<<(std::ostream& out, const expr& e);

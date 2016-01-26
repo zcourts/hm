@@ -64,9 +64,9 @@ namespace lisp {
 		// vla for args 
 		macro_vla(value, args, self.size() - 1);
 
-		std::transform(self.begin() + 1, self.end(), args.begin(), [env](const sexpr::expr& e) {
-			return eval(env, e);
-		  });
+		for(unsigned i = 0; i < args.size; ++i) {
+		  args.data[i] = eval(env, self[i + 1]);
+		}
 	  
 		// augment environment from args 
 		sub = env->augment(func->args.begin(), func->args.end(),
@@ -83,9 +83,9 @@ namespace lisp {
 	   // vla for args 
 	  macro_vla(value, args, self.size() - 1);
 
-	  std::transform(self.begin() + 1, self.end(), args.begin(), [env](const sexpr::expr& e) {
-		  return eval(env, e);
-		});
+	  for(unsigned i = 0; i < args.size; ++i) {
+		args.data[i] = eval(env, self[i + 1]);
+	  }
 	  
 	  // call builtin 
 	  return func.ptr(env, args.begin(), args.end() );
@@ -105,12 +105,13 @@ namespace lisp {
 	// lists
 	inline value operator()(const sexpr::list& self, environment env) const {
 	  
-	  if( self.empty() ) throw error("empty list in application");
+	  if( self.empty() ) {
+		throw error("empty list in application");
+	  }
 
 	  // try special forms
 	  if( self[0].is<symbol>() ) {
 		auto it = special.find( self[0].as<symbol>() );
-
 		if( it != special.end() ) return it->second(env, self);
 	  }
 
@@ -230,6 +231,7 @@ namespace lisp {
 	}
 	
   };
+
   
   static value eval_quote(environment , const sexpr::list& list) {
 	assert( check_special(list, keyword.quote));

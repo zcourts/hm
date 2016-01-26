@@ -9,6 +9,8 @@ namespace lisp {
 
   using real = sexpr::real;
   using string = ref<sexpr::string>;
+
+  // TODO this is wrong, we want a list of values
   using list = ref<sexpr::list>;
   
   struct lambda_type;

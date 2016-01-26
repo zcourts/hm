@@ -14,5 +14,6 @@ LIBS += -lreadline
 # CONFIG = debug
 
 release {
+	QMAKE_CXXFLAGS += -g
 	DEFINES += NDEBUG
 }
