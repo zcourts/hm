@@ -1,6 +1,10 @@
 #include "lisp.hpp"
+#include "vla.hpp"
 
 #include <algorithm>
+
+// debug
+#include <iostream>
 
 namespace lisp {
 
@@ -45,19 +49,6 @@ namespace lisp {
   // parameter with correct type
   struct apply {
 	
-	template<class Iterator>
-	static vec<value> eval_each(environment env, Iterator first, Iterator last) {
-	  vec<value> args;
-	  args.reserve(last - first);
-
-	  std::transform(first, last, std::back_inserter(args), [env](const sexpr::expr& e) {
-		  return eval(env, e);
-		});
-
-	  return args;
-	}
-
-	
 	// lambda application
 	value operator()(const lambda& func, environment env, const sexpr::list& self) const {
 	  assert( !self.empty() );
@@ -66,28 +57,38 @@ namespace lisp {
 	  if(func->args.size() != self.size() - 1) {
 		throw error("bad argument count");
 	  }
-	  
-	  // evaluate args
-	  vec<value> args = eval_each(env, self.begin() + 1, self.end());
 
-	  // TODO use an iterator that evaluates on demand to avoid
-	  // temporary?
+	  environment sub;
+
+	  {
+		// vla for args 
+		macro_vla(value, args, self.size() - 1);
+
+		std::transform(self.begin() + 1, self.end(), args.begin(), [env](const sexpr::expr& e) {
+			return eval(env, e);
+		  });
 	  
-	  // augment environment from args 
-	  environment sub = env->augment(func->args.begin(), func->args.end(),
-									 args.begin(), args.end());
+		// augment environment from args 
+		sub = env->augment(func->args.begin(), func->args.end(),
+						   args.begin(), args.end() );
+	  }
 	  
 	  return eval(sub, func->body);
+
 	}
 
 
 	value operator()(const builtin& func, environment env, const sexpr::list& self) const {
 
-	  // eval arguments
-	  vec<value> args = eval_each(env, self.begin() + 1, self.end() );
+	   // vla for args 
+	  macro_vla(value, args, self.size() - 1);
 
-	  // call builtin
-	  return func.ptr(env, std::move(args));
+	  std::transform(self.begin() + 1, self.end(), args.begin(), [env](const sexpr::expr& e) {
+		  return eval(env, e);
+		});
+	  
+	  // call builtin 
+	  return func.ptr(env, args.begin(), args.end() );
 	}
 	
 
@@ -102,7 +103,7 @@ namespace lisp {
   struct evaluate {
 
 	// lists
-	value operator()(const sexpr::list& self, environment env) const {
+	inline value operator()(const sexpr::list& self, environment env) const {
 	  
 	  if( self.empty() ) throw error("empty list in application");
 
@@ -125,13 +126,13 @@ namespace lisp {
 	}
 
 	// variables
-	value operator()(const symbol& self, environment env) const {
+	inline value operator()(const symbol& self, environment env) const {
 
 	  // TODO check this during canonicalize
-	  {
-		auto it = special.find( self );
-		if( it != special.end() ) throw error("reserved keyword");
-	  }
+	  // {
+	  // 	auto it = special.find( self );
+	  // 	if( it != special.end() ) throw error("reserved keyword");
+	  // }
 
 	  return env->find( self, [self] {
 		  throw error("unknown variable: " + std::string(self) );
@@ -142,7 +143,7 @@ namespace lisp {
 	
 	// all the rest is returned as is
 	template<class T>
-	value operator()(const T& self, environment ) const {
+	inline value operator()(const T& self, environment ) const {
 	  return self;
 	}
 	

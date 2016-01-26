@@ -58,48 +58,51 @@ struct number {
   
 };
 
+
+
 struct lisp_handler {
   mutable lisp::environment env = shared<lisp::environment_type>();
 
   lisp_handler() {
 	using namespace lisp;
-	
-	(*env)[ symbolize("+") ] = builtin( [](environment, vec<value>&& args) -> value {
-		if(args.empty()) throw error("1+ args expected");
+
+	(*env)[ symbolize("+") ] = builtin( [](environment, value* first, value* last) -> value {
+		  const unsigned argc = last - first;
+		  if(!argc) throw error("1+ args expected");
 		
-		real res = 0;
+		  real res = 0;
 
-		for(const auto& v : args) {
-		  res += v.apply<real>( number() );
+		  for(value* arg = first; arg != last; ++arg) {
+			res += arg->apply<real>( number() );
+		  }
+
+		  return res;
+		});
+	
+	(*env)[ symbolize("=") ] = builtin( [](environment, value* first, value* last) -> value {
+		const unsigned argc = last - first;
+		if(argc < 2) throw error("2+ args expected");
+
+		const real val = first[0].apply<real>(number());
+
+		for(value* arg = first + 1; arg != last; ++arg) {
+		  if( val != arg->apply<real>(number()) ) return false;
 		}
-
-		return res;
-	  });
-
-	(*env)[ symbolize("=") ] = builtin( [](environment, vec<value>&& args) -> value {
-		if(args.size() < 2) throw error("2+ args expected");
-
-		const real value = args[0].apply<real>(number());
-
-		for(unsigned i = 1, n = args.size(); i < n; ++i) {
-		  if( value != args[i].apply<real>(number()) ) return false;
-		}
-		  
+		
 		return true;
 	  });	
 
-	(*env)[ symbolize("-") ] = builtin( [](environment, vec<value>&& args) -> value {
-		if(args.empty()) throw error("1+ args expected");
+	(*env)[ symbolize("-") ] = builtin( [](environment, value* first, value* last ) -> value {
+		const unsigned argc = last - first;
+		if(!argc) throw error("1+ args expected");
 		
 		real res = 0;
 
-		unsigned i = 0;
-		for(const auto& v : args) {
+		for(value* arg = first; arg != last; ++arg) {
 
-		  const real n = v.apply<real>(number());
-		  res = i ? res - n : n;
+		  const real n = arg->apply<real>(number());
+		  res = (arg == first) ? n : res - n;
 
-		  ++i;
 		}
 
 		return res;
@@ -178,7 +181,7 @@ int main(int argc, const char* argv[] ) {
   
   std::cout << std::boolalpha;
   
-  sexpr_parser handler = { hm_handler{} };
+  sexpr_parser handler = { lisp_handler{} };
   // sexpr_parser handler = { hm_handler{} };  
 
   if( argc > 1) {

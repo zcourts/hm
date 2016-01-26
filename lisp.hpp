@@ -25,10 +25,10 @@ namespace lisp {
   using value = variant<nil, bool, int, real, symbol, string, list, lambda, environment, builtin>;
 
   struct builtin {
-	using type = value (*)(environment env, vec<value>&& args);
-	type ptr = nullptr;
-
-	builtin(type ptr) : ptr(ptr) { }
+	using type = value (*)(environment env, value* first, value* last);
+	type ptr;
+	
+	builtin(type ptr = nullptr) : ptr(ptr) { }
   };
   
   // make sure we don't accidentally get too large value type
