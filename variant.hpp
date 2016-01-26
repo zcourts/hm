@@ -223,6 +223,37 @@ class variant {
   static constexpr unsigned type_index() {
 	return get( impl::index_of<T, variant>{} );
   }
+
+  
+  template<class Variant>
+  inline variant& assign_op(Variant&& other) {
+	// different types ?
+	if( id != other.id ) {
+
+	  // destroy if needed
+	  if( id != uninitialized ) {
+		apply( destruct() );
+	  }
+
+	  // destructed, now change type
+	  id = other.id;
+
+	  // construct if needed
+	  if( other.id != uninitialized ) {
+		apply( construct(), std::forward<Variant>(other));
+	  }
+	} else {
+
+	  //  move assign if needed
+	  if( id != uninitialized ) {
+		apply( assign(), std::forward<Variant>(other) );
+	  }
+
+	}
+
+  	return *this;
+  }
+  
   
 public:
   
@@ -259,64 +290,12 @@ public:
   // TODO move assignement/constructors
   
   variant& operator=(const variant& other) {
-
-	// different types ?
-	if( id != other.id ) {
-
-	  // destroy if needed
-	  if( id != uninitialized ) {
-		apply( destruct() );
-	  }
-
-	  // destructed, now change type
-	  id = other.id;
-
-	  // construct if needed
-	  if( other.id != uninitialized ) {
-		apply( construct(), other );
-	  }
-	  
-	} else {
-
-	  // copy assign if needed
-	  if( id != uninitialized ) {
-		apply( assign(), other);
-	  }
-
-	}
-
-  	return *this;
+	return assign_op(other);
   }
 
 
   variant& operator=(variant&& other) {
-
-	// different types ?
-	if( id != other.id ) {
-
-	  // destroy if needed
-	  if( id != uninitialized ) {
-		apply( destruct() );
-	  }
-
-	  // destructed, now change type
-	  id = other.id;
-
-	  // construct if needed
-	  if( other.id != uninitialized ) {
-		apply( construct(), std::move(other));
-	  }
-	} else {
-
-	  //  move assign if needed
-	  if( id != uninitialized ) {
-		apply( assign(), std::move(other) );
-	  }
-
-	}
-
-  	return *this;
-
+	return assign_op(std::move(other));
   }
   
   
@@ -331,13 +310,13 @@ public:
   template<class T>
   inline T& as() {
 	if( !is<T>() ) throw error();
-	return *reinterpret_cast<T*>(data);
+	return unsafe<T>();
   }
 
   template<class T>
   inline const T& as() const {
 	if( !is<T>() ) throw error();
-	return *reinterpret_cast<const T*>(data);
+	return unsafe<T>();
   }
 
   
