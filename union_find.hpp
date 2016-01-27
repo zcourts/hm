@@ -9,10 +9,11 @@ template<class T>
 class union_find {
   using rank_type =  std::map<T, int>;
 
-  // insert 
   struct parent_type : std::map<T, T> {
 
-
+	// insert key if not found (this way we don't have to manually add
+	// types during type inference: they are added automatically on
+	// first use)
 	T& operator[](const T& key) {
 	  auto it = this->insert( std::make_pair(key, key) );
 
@@ -31,26 +32,22 @@ class union_find {
 
 public:
 
-  union_find() : dsets( pm<rank_type>(rank),
-						pm<parent_type>(parent) ) {
+  union_find()
+	: dsets( pm<rank_type>(rank),
+			 pm<parent_type>(parent) ) {
 	
   }
-  
-  void add(const T& x) {
-	dsets.make_set(x);
-  }
-  
+
   // y becomes representative
   void link(const T& x, const T& y) {
 	dsets.link(x, y);
   }
 
-  // find representative 
+  // find representative for type
   T find(const T& x) {
 	return dsets.find_set(x);
   }
 
-  // TODO operator<< for debug ?
   
 };
 
