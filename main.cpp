@@ -25,6 +25,8 @@
 #include "lisp.hpp"
 
 #include <fstream>
+#include <boost/program_options.hpp>
+
 
 struct sexpr_parser {
   std::function< void (const sexpr::list& prog ) > handler;
@@ -137,7 +139,14 @@ struct hm_handler {
 
 	ctx[ ast::var("+") ] = type::mono( type::integer >>= type::integer >>= type::integer);
 	ctx[ ast::var("-") ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ ast::var("=") ] = type::mono( type::integer >>= type::integer >>= type::boolean);
 
+	// this is just for type inference purpose
+	{
+	  type::var v;
+	  ctx[ ast::var("if") ] = generalize(ctx, type::boolean >>= v >>= v >>= v);	
+	}
+	
 	// TODO n-ary function
 	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		
 
@@ -186,23 +195,59 @@ struct hm_handler {
 
   
 
+namespace po = boost::program_options;
+po::variables_map parse_options(int argc, const char* argv[], std::vector<std::string>& remaining) {
+  
+  po::options_description desc("options");
 
+  int x;
+  desc.add_options()
+    ("help,h", "produce help message")
+    ("lisp", "lisp evaluation")
+    ("hm", "hindley-milner type inference (default)")
+	;
+   
+  po::variables_map vm;
+  po::parsed_options parsed =
+    po::command_line_parser(argc, argv).options(desc).allow_unregistered().run();
+  po::store(parsed, vm);
+  po::notify(vm);    
+
+  if (vm.count("help")) {
+	std::cout << desc << "\n";
+	std::exit(1);
+  }
+  
+  remaining = po::collect_unrecognized(parsed.options, po::include_positional);
+  
+  return vm;
+}
 
 int main(int argc, const char* argv[] ) {
   
   std::cout << std::boolalpha;
-  
-  // sexpr_parser handler = { lisp_handler{} };
-  sexpr_parser handler = { hm_handler{} };  
 
-  if( argc > 1) {
-	std::ifstream file(argv[1]);
+  vec<std::string> remaining;
+  auto vm = parse_options(argc, argv, remaining);
+  
+ 
+  
+  sexpr_parser parser;
+
+  if(vm.count("lisp")) {
+	parser.handler = lisp_handler{};
+  } else {
+	parser.handler = hm_handler{};
+  }
+
+  if( !remaining.empty() ) {
+	std::ifstream file( remaining[0].c_str() );
 	if( !file ) throw std::runtime_error("file not found");
 
-	handler( file );
+	parser( file );
 	
   } else {
-	repl::loop( handler );
+	repl::loop( parser );
   }
   
   return 0;

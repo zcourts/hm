@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 
-
 class symbol {
   const char* string = nullptr;
 public:

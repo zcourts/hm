@@ -335,6 +335,10 @@ namespace lisp {
 	x.apply( stream(), out);
 	return out;
   }
+
+
+  // this keeps gcc linker happy (??)
+  lambda_type::lambda_type() { }
   
 }
 

@@ -9,9 +9,6 @@
 #include <iostream>
 
 
-// generalize a monotype given context i.e. quantify all unbound
-// variables
-static type::poly generalize(const context& ctx, type::mono t);
 
 // unify monotypes a and b in union_find structure types
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
@@ -85,7 +82,9 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	};
 	
 	// note: other becomes the representative
+	// std::cout << "\tlinking " << type::mono(self) << " and " << other << std::endl;
 	types.link(self, other);
+	// std::cout << "\trepresented by: " << types.find(other) << std::endl;
 	
   } else if( a != b ) {
 	throw unification_error(a, b);
@@ -186,8 +185,9 @@ static void get_vars(std::set<type::var>& out, type::mono t) {
 }
 
 
-// generalize monotype given context (i.e. quantify all unbound variables)
-static type::poly generalize(const context& ctx, type::mono t) {
+// generalize monotype given context (i.e. quantify all unbound
+// variables)
+type::poly generalize(const context& ctx, type::mono t) {
   using namespace type;
 
   // all type variables in monotype t
@@ -280,7 +280,7 @@ struct algorithm_w {
 	unify(types, func, app);
 
 	// application has the result type
-	return result;
+	return types.find(result);
   }
 
   
@@ -364,9 +364,7 @@ type::poly hindley_milner(const context& ctx, const ast::expr& e) {
   // compute monotype in current context
   type::mono t = e.apply<type::mono>( algorithm_w{types}, c);
 
-  // obtain a nice representative
-  // TODO merge w/ generalize ?
-  type::mono r = represent(types, t);
+  // type::mono r = represent(types, t);
 
   // generalize as much as possible given context
   type::poly p = generalize(c, t);

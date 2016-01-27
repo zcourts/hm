@@ -3,6 +3,7 @@
 
 #include "variant.hpp"
 #include "sexpr.hpp"
+
 #include <map>
 
 namespace lisp {
@@ -85,6 +86,8 @@ namespace lisp {
   };
 
   struct lambda_type {
+	lambda_type();
+   
 	environment env;
 	vec<symbol> args;
 	sexpr::expr body;

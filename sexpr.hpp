@@ -23,7 +23,9 @@ namespace sexpr {
   using expr = variant< list, symbol, real, integer, bool, string >;
   
   struct list : vec<expr> {
-	using vec<expr>::vec;
+
+	// this makes gcc choke :-/
+	// using vec<expr>::vec;
 
 	list(const vec<expr>& other) : vec<expr>(other) { }
 	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }
