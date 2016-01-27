@@ -1,4 +1,4 @@
-a toy implementation of Hindley-Milner type inference in c++11.
+a toy implementation of Hindley-Milner type inference in c++11:
 
 ```
 $ ./hm

@@ -10,15 +10,11 @@
 
 
 
-// unify monotypes a and b in union_find structure types
+// unify monotypes @a and @b in union_find structure @types
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
 
-// get a nice representative for a monotype
-static type::mono represent(union_find<type::mono>& types, const type::mono& t);
 
-
-
-// true if monotype self contains type variable var
+// true if monotype @self contains type variable @var
 struct contains {
 
   bool operator()(const type::app& self, const type::var& var) const {
@@ -95,22 +91,7 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 using substitution = std::map<type::var, type::var>;
 
 
-// get a nice representative for a type
-static type::mono represent(union_find<type::mono>& types, const type::mono& t) {
-  
-  using namespace type;
 
-  mono res = types.find(t);
-  
-  if( res.is<app>() ) {
-	auto& self = res.as<app>();
-	
-	res = app{ shared( represent(types, *self.from)),
-			   shared( represent(types, *self.to)) };
-  }  
-
-  return res;
-}
 
 
 // instantiate a polytype with fresh type variables
@@ -363,8 +344,6 @@ type::poly hindley_milner(const context& ctx, const ast::expr& e) {
 
   // compute monotype in current context
   type::mono t = e.apply<type::mono>( algorithm_w{types}, c);
-
-  // type::mono r = represent(types, t);
 
   // generalize as much as possible given context
   type::poly p = generalize(c, t);
