@@ -66,6 +66,13 @@ namespace type {
 	}
   };
 
+  template<> struct traits<double> {
+
+	static type::lit type() {
+	  return {"real"};
+	}
+  };
+
   template<> struct traits<bool> {
 
 	static type::lit type() {

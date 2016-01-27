@@ -15,11 +15,12 @@ namespace sexpr {
   // copy lists recursively during parsing (no move semantics in
   // spirit2 :-/)
   struct list;
-  
+
+  using integer = int;
   using string = std::string;
   using real = double;
   
-  using expr = variant< list, symbol, real, int, bool, string >;
+  using expr = variant< list, symbol, real, integer, bool, string >;
   
   struct list : vec<expr> {
 	using vec<expr>::vec;

@@ -36,9 +36,13 @@ struct match_expr {
   }
 
 
-  ast::expr operator()(const int& self) const {
+  ast::expr operator()(const sexpr::integer& self) const {
 	return ast::lit<int>{self};
   }
+
+  ast::expr operator()(const sexpr::real& self) const {
+	return ast::lit<double>{self};
+  }  
 
   ast::expr operator()(const bool& self) const {
 	return ast::lit<bool>{self};
@@ -52,7 +56,7 @@ struct match_expr {
   
   template<class T>
   ast::expr operator()(const T& self) const {
-	throw syntax_error("unimplemented");
+	throw std::logic_error("unimplemented type: " + std::string( typeid(T).name()) );
   }
   
 

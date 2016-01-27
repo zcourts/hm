@@ -8,6 +8,42 @@
 // debug
 #include <iostream>
 
+static type::poly generalize(const context& ctx, type::mono t);
+
+struct contains {
+
+  bool operator()(const type::app& self, const type::var& var) const {
+	return self.from->apply<bool>(*this, var) ||  self.to->apply<bool>(*this, var);
+  };
+
+
+  bool operator()(const type::lit& self, const type::var& var) const {
+	return false;
+  };
+
+  bool operator()(const type::var& self, const type::var& var) const {
+	return self == var;
+  };
+  
+  
+};
+
+
+struct unification_error : type_error {
+
+  static std::string message(const type::mono& expected,
+							 const type::mono& got) {
+	context ctx;
+	std::stringstream ss;
+	ss << "expected " << generalize(ctx, expected) << ", got " << generalize(ctx, got);
+	return ss.str();
+  }
+  
+  unification_error(const type::mono& expected, const type::mono& got)
+	: type_error( message(expected, got) ) {
+	
+  }
+};
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
@@ -33,22 +69,20 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	unify(types, *a.as< app >().to,   *b.as< app >().to);
 	
   } else if( a.is<var>() || b.is<var>() ) {
-	// merge a and b classes (representative is right-hand side for link)
-	// std::cout << "merging classes" << std::endl;
 
-	if( a.is<var>() ) {
-	  types.link(a, b);
-	} else {
-	  types.link(b, a);
-	}
+	auto& self = a.is<var>() ? a.as<var>() : b.as<var>();
+	auto& other = a.is<var>() ? b : a;
 
-	// TODO we should make sure the term is the representative and not
-	// the variable
-
+	// avoid recursive unification (e.g. 'a with 'a -> 'b)
+	if(other.is<app>() && other.apply<bool>(contains(), self)) {
+	  throw unification_error(other, self);
+	};
+	
+	// other becomes the representative
+	types.link(self, other);
+	
   } else if( a != b ) {
-	std::stringstream ss;
-	ss << "can't match " << a << " with " << b;
-	throw type_error(ss.str());
+	throw unification_error(a, b);
   }
 };
 
@@ -239,7 +273,7 @@ struct algorithm_w {
 
 	// unify function type with app
 	unify(types, func, app);
-
+	
 	return fresh;
   }
 

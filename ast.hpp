@@ -15,7 +15,7 @@ namespace ast {
   struct let;					// local defintions
 
   // TODO lists
-  using expr = variant< lit<void>, lit<int>, lit<bool>, lit<std::string>,
+  using expr = variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
 						var, abs, app, let >;
   
   template<class T>
