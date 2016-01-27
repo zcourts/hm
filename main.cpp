@@ -135,8 +135,8 @@ struct hm_handler {
 
   hm_handler() {
 
-	ctx[ ast::var("+") ] = type::mono( type::integer >> type::integer );
-	ctx[ ast::var("-") ] = type::mono( type::integer >> type::integer );
+	ctx[ ast::var("+") ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ ast::var("-") ] = type::mono( type::integer >>= type::integer >>= type::integer);
 
 	// TODO n-ary function
 	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		

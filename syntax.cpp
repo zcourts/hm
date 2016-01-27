@@ -96,12 +96,6 @@ struct match_expr {
 	  throw syntax_error("expected lambda or variable in function application");
 	}
 
-	// if( terms.size() > 2 ) {
-	//   throw std::runtime_error("multiple function arguments not handled");
-	// }
-
-	// TODO unit type for nullary functions ?
-	// TODO ref in func/args
 	vec<ast::expr> args(terms.begin() + 1, terms.end());
 	return ast::app{ shared(terms[0]), args };
   }

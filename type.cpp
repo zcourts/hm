@@ -38,7 +38,7 @@ namespace type {
 
 	void operator()(const app& self, std::ostream& out) const {
 	  const bool is_from_app = self.from->is< app >();
-	  const bool is_to_app = self.to->is< app >();
+	  // const bool is_to_app = self.to->is< app >();
 
 	  out << (is_from_app ? "(" : "");
 	  self.from->apply(*this, out);
@@ -46,10 +46,7 @@ namespace type {
 
 	  out << " -> ";
 
-	  // TODO maybe we don't have to parentize on the right	  
-	  out << (is_to_app ? "(" : "");
 	  self.to->apply(*this, out);
-	  out << (is_to_app ? ")" : "")
 		;
 	}
 

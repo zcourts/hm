@@ -104,7 +104,7 @@ namespace type {
 
 
   // easy function types
-  static inline type::app operator>>(type::mono lhs, type::mono rhs) {
+  static inline type::app operator>>=(type::mono lhs, type::mono rhs) {
 	return { shared(lhs), shared(rhs) };
   }
   
