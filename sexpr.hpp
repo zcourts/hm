@@ -29,17 +29,6 @@ namespace sexpr {
 	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }
 	list() {}
 
-	list(const list& other) : vec<expr>(other) {
-	  // std::cout << "copy called" << std::endl;
-	}
-	
-	list(list&& other) : vec<expr>(std::move(other)) {
-	  // std::cout << "move called" << std::endl;
-	}
-
-
-	list& operator=(const list& other) = default;
-	list& operator=(list&& other) = default;	
   };
 
   std::ostream& operator<<(std::ostream& out, const expr& e);
