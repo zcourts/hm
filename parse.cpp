@@ -90,7 +90,7 @@ static sexpr::list parse(Iterator first, Iterator last) {
   string = qi::lexeme[db_quote >> qi::as_string[*(~db_quote)][_val = _1] >> db_quote];
 
   const std::string exclude = std::string(" ();\"\x01-\x1f\x7f") + '\0';  
-  symbol = (as_string[ lexeme[+(~qi::char_(exclude))] ])[ _val = bind(&symbolize, _1) ];
+  symbol = (as_string[ lexeme[+(~qi::char_(exclude))] ])[ _val = construct<::symbol>(_1) ];
   
   seq = (*expr);
 

@@ -10,7 +10,10 @@ namespace ast {
   // expressions
   template<class T> struct lit;	// literals
   // struct var;					// variables
-  using var = symbol;
+
+  struct var : symbol {
+	using symbol::symbol;
+  };
   
   struct abs;					// lambda-abstractions
   struct app;					// applications

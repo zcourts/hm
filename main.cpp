@@ -66,7 +66,7 @@ struct lisp_handler {
   lisp_handler() {
 	using namespace lisp;
 
-	(*env)[ symbolize("+") ] = builtin( [](environment, value* first, value* last) -> value {
+	(*env)[ symbol("+") ] = builtin( [](environment, value* first, value* last) -> value {
 		  const unsigned argc = last - first;
 		  if(!argc) throw error("1+ args expected");
 		
@@ -79,7 +79,7 @@ struct lisp_handler {
 		  return res;
 		});
 	
-	(*env)[ symbolize("=") ] = builtin( [](environment, value* first, value* last) -> value {
+	(*env)[ symbol("=") ] = builtin( [](environment, value* first, value* last) -> value {
 		const unsigned argc = last - first;
 		if(argc < 2) throw error("2+ args expected");
 
@@ -92,7 +92,7 @@ struct lisp_handler {
 		return true;
 	  });	
 
-	(*env)[ symbolize("-") ] = builtin( [](environment, value* first, value* last ) -> value {
+	(*env)[ symbol("-") ] = builtin( [](environment, value* first, value* last ) -> value {
 		const unsigned argc = last - first;
 		if(!argc) throw error("1+ args expected");
 		
@@ -135,8 +135,8 @@ struct hm_handler {
 
   hm_handler() {
 
-	ctx[ symbolize("+") ] = type::mono( type::integer >> type::integer );
-	ctx[ symbolize("-") ] = type::mono( type::integer >> type::integer );
+	ctx[ ast::var("+") ] = type::mono( type::integer >> type::integer );
+	ctx[ ast::var("-") ] = type::mono( type::integer >> type::integer );
 
 	// TODO n-ary function
 	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		

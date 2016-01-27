@@ -144,7 +144,7 @@ static ast::expr transform_abs(const sexpr::list& e) {
 	if( !a.is<symbol>() ) throw syntax_error("arguments must be symbols");
 
 	// TODO push_back
-	res.args = ast::var{a.as<symbol>() };
+	res.args = ast::var{a.as<symbol>().name() };
   }
   
   // body
@@ -181,12 +181,12 @@ ast::var transform_var(const sexpr::expr& e) {
 
   auto& s = e.as<symbol>();
   
-  auto it = keyword.all.find( s );
+  auto it = keyword.all.find( s.name() );
   if(it != keyword.all.end() ) {
 	throw syntax_error( *it + " is a reserved keyword");
   }
 
-  return {s};
+  return {s.name()};
 }
 
 

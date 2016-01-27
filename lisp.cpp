@@ -111,7 +111,7 @@ namespace lisp {
 
 	  // try special forms
 	  if( self[0].is<symbol>() ) {
-		auto it = special.find( self[0].as<symbol>() );
+		auto it = special.find( self[0].as<symbol>().name() );
 		if( it != special.end() ) return it->second(env, self);
 	  }
 
@@ -136,7 +136,7 @@ namespace lisp {
 	  // }
 
 	  return env->find( self, [self] {
-		  throw error("unknown variable: " + std::string(self) );
+		  throw error("unknown variable: " + std::string(self.name()) );
 		});
 
 	}

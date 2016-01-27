@@ -55,7 +55,7 @@ namespace type {
 
 
 	void operator()(const lit& self, std::ostream& out) const {
-	  out << self.name;
+	  out << self;
 	}
 
 

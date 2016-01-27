@@ -10,20 +10,14 @@
 namespace type {
 
   // monotypes
-  struct lit;
+  struct lit : symbol {
+	using symbol::symbol;
+  };
+  
   struct var;
   struct app;
 
   using mono = variant< app, var, lit >;
-  
-  struct lit {
-	symbol name;
-
-	inline bool operator<(const lit& other) const { return name < other.name; }
-	inline bool operator==(const lit& other) const { return name == other.name; }
-
-  };
-
   
   struct var {
 	var(unsigned index = total++) : index(index) { }
@@ -68,21 +62,21 @@ namespace type {
   template<> struct traits<int> {
 
 	static type::lit type() {
-	  return { symbolize("int") };
+	  return {"int"};
 	}
   };
 
   template<> struct traits<bool> {
 
 	static type::lit type() {
-	  return { symbolize("bool") };
+	  return {"bool"};
 	}
   };
 
   template<> struct traits<void> {
   
 	static type::lit type() {
-	  return { symbolize("unit") };
+	  return { "unit" };
 	}
 	
   };

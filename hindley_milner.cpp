@@ -206,7 +206,7 @@ struct algorithm_w {
 	if(it == c.end()) {
 	  // TODO type_error ?
 	  std::string msg = "undeclared variable: ";
-	  throw std::runtime_error(msg + v);
+	  throw std::runtime_error(msg + v.name());
 	}
 
 	// specialize polytype for variable
