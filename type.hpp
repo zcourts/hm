@@ -73,6 +73,14 @@ namespace type {
 	}
   };
 
+  template<> struct traits<std::string> {
+
+	static type::lit type() {
+	  return {"string"};
+	}
+	
+  };
+
   template<> struct traits<void> {
   
 	static type::lit type() {

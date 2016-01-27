@@ -13,8 +13,10 @@ namespace ast {
   struct abs;					// lambda-abstractions
   struct app;					// applications
   struct let;					// local defintions
-  
-  using expr = variant< lit<void>, lit<int>, lit<bool>, var, abs, app, let >;
+
+  // TODO lists
+  using expr = variant< lit<void>, lit<int>, lit<bool>, lit<std::string>,
+						var, abs, app, let >;
   
   template<class T>
   struct lit {
@@ -25,7 +27,6 @@ namespace ast {
 	using symbol::symbol;
   };
 
-  
   template<> struct lit<void> { };
 
   struct abs {
@@ -53,7 +54,7 @@ namespace ast {
   };
 
 
-  // complete syntax TODO types
+  // complete syntax TODO types ?
   using node = variant<expr, def>;
   
 }

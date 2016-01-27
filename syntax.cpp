@@ -44,6 +44,11 @@ struct match_expr {
 	return ast::lit<bool>{self};
   }
 
+  ast::expr operator()(const std::string& self) const {
+	return ast::lit<std::string>{self};
+  }
+
+  
   
   template<class T>
   ast::expr operator()(const T& self) const {
