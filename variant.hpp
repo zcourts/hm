@@ -63,7 +63,7 @@ namespace impl {
 
 	template<class U> struct error : value_type<bool, false > { };
   
-	friend constexpr unsigned get(index_of) {
+	friend constexpr unsigned get( index_of ) {
 	  static_assert( error<T>::value, "type does not belong to variant");
 	  return sizeof(T);
 	}
@@ -231,7 +231,7 @@ class variant {
 	if( id != other.id ) {
 
 	  // destroy if needed
-	  if( id != uninitialized ) {
+	  if( valid() ) {
 		apply( destruct() );
 	  }
 
@@ -239,13 +239,13 @@ class variant {
 	  id = other.id;
 
 	  // construct if needed
-	  if( other.id != uninitialized ) {
+	  if( valid() ) {
 		apply( construct(), std::forward<Variant>(other));
 	  }
 	} else {
 
 	  //  move assign if needed
-	  if( id != uninitialized ) {
+	  if( valid() ) {
 		apply( assign(), std::forward<Variant>(other) );
 	  }
 
@@ -265,19 +265,19 @@ public:
 
   
   variant(const variant& other) : id(other.id) {
-	if( id == uninitialized ) return;
+	if( !valid() ) return;
 
 	apply( construct(), other);
   }
 
   variant(variant&& other) : id(other.id) {
-	if( id == uninitialized ) return;
+	if( !valid() ) return;
 
 	apply( construct(), std::move(other));
   }
   
   ~variant() {
-	if( id == uninitialized ) return;
+	if( !valid() ) return;
 	apply( destruct() );
   }
 
@@ -319,13 +319,15 @@ public:
 	return unsafe<T>();
   }
 
+
+  bool valid() const { return id != uninitialized; }
   
   inline bool operator<(const variant& other) const {
 	// TODO do we want to compare uninitalized values ?
 	
 	if( id < other.id ) return true;
 	if( id != other.id ) return false;
-	if( id == uninitialized ) return false;
+	if( !valid() ) return false;
 
 	return apply<bool>(compare(), other);
   }
@@ -338,7 +340,7 @@ public:
 
 	// TODO do we want to compare uninitalized values ?
 	if( id != other.id ) return false;
-	if( id == uninitialized ) return true;
+	if( !valid() ) return true;
 
 	return apply<bool>(equals(), other);
   }
@@ -347,7 +349,7 @@ public:
   template<class Out>
   friend Out& operator<<(Out& out, const variant& v) {
 
-	if( v.id == uninitialized ) {
+	if( !v.valid() ) {
 	  return out << "*uninitialized*";
 	} else {
 	  return v.apply<Out&>( ostream<Out>(), out );
@@ -359,7 +361,7 @@ public:
   // static type switch from a function object f: (const T&, Args&&...) -> Ret
   template<class Ret = void, class F, class ... Args>
   inline Ret apply(const F& f, Args&& ... args ) const {
-	if( id == uninitialized ) throw error();
+	if( !valid() ) throw error();
 
 	static apply_const_type<Ret, F, Args...> app[] = { &variant::apply_const_thunk<Types>... };
 	return (this->*app[id])(f, std::forward<Args>(args)...);
@@ -369,7 +371,7 @@ public:
   // static type switch from a function object f: (T&, Args&&...) -> Ret
   template<class Ret = void, class F, class ... Args>
   inline Ret apply(const F& f, Args&& ... args ) {
-	if( id == uninitialized ) throw error();
+	if( !valid() ) throw error();
 
 	static apply_type<Ret, F, Args...> app[] = { &variant::apply_thunk<Types>... };
 	return (this->*app[id])(f, std::forward<Args>(args)...);

@@ -43,9 +43,9 @@ namespace type {
 	
 	bool operator<(const app& other) const;
 	bool operator==(const app& other) const;
-	
   };
 
+  std::ostream& operator<<(std::ostream& out, const mono& p);  
   
   // TODO other type constructors, add func
   
@@ -60,6 +60,45 @@ namespace type {
   };
 
   std::ostream& operator<<(std::ostream& out, const poly& p);
+
+  // TODO not quite sure where this belongs
+  // constant types for literals
+  template<class T> struct traits;
+
+  template<> struct traits<int> {
+
+	static type::lit type() {
+	  return { symbolize("int") };
+	}
+  };
+
+  template<> struct traits<bool> {
+
+	static type::lit type() {
+	  return { symbolize("bool") };
+	}
+  };
+
+  template<> struct traits<void> {
+  
+	static type::lit type() {
+	  return { symbolize("unit") };
+	}
+	
+  };
+
+
+  // some helpers
+  static const type::lit integer = traits<int>::type();
+  static const type::lit boolean = traits<bool>::type();
+  static const type::lit unit = traits<void>::type();
+
+
+  // easy function types
+  static inline type::app operator>>(type::mono lhs, type::mono rhs) {
+	return { shared(lhs), shared(rhs) };
+  }
+  
 }
 
 

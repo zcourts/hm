@@ -10,8 +10,8 @@ namespace lisp {
   using real = sexpr::real;
   using string = ref<sexpr::string>;
 
-  // TODO this is wrong, we want a list of values
-  using list = ref<sexpr::list>;
+  struct list_type;
+  using list = ref<list_type>;
   
   struct lambda_type;
   using lambda = ref<lambda_type>;
@@ -90,12 +90,16 @@ namespace lisp {
 	sexpr::expr body;
   };
 
+  struct list_type : vec<value> {
+	using vec<value>::vec;
+  };
+
 
   // transform expression to canonical form
-  sexpr::expr canonicalize(sexpr::expr expr);
+  sexpr::expr canonicalize(const sexpr::expr& expr);
   
   // evaluates a sexpr in canonical form
-  value eval(environment env, sexpr::expr expr);
+  value eval(environment env, const sexpr::expr& expr);
 
   
 

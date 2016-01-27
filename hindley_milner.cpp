@@ -45,8 +45,10 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	// TODO we should make sure the term is the representative and not
 	// the variable
 
-  } else {
-	throw std::runtime_error("types do not match lol");
+  } else if( a != b ) {
+	std::stringstream ss;
+	ss << "can't match " << a << " with " << b;
+	throw type_error(ss.str());
   }
 };
 
@@ -60,7 +62,7 @@ static type::mono represent(union_find<type::mono>& types, type::mono t) {
   using namespace type;
 
   mono res = types.find(t);
-  
+
   if( res.is<app>() ) {
 	auto& self = res.as<app>();
 	
@@ -68,8 +70,6 @@ static type::mono represent(union_find<type::mono>& types, type::mono t) {
 			   shared( represent(types, *self.to)) };
   }  
 
-  // std::cout << "representing " << t << " by " << res << std::endl;
-  
   return res;
 }
 
@@ -100,8 +100,7 @@ struct specialize {
 	  type::mono sto = self.to->apply<type::mono>(parent, substitution(s) );	  
 	  
 	  type::app res = {shared( sfrom ), shared(sto)};
-	  
-	  parent.types.add(res);
+
 	  return res;
 	}
 
@@ -125,7 +124,6 @@ struct specialize {
 	for(const auto& v : self.args) {
 	  type::var fresh;
 	  s[v] = fresh;
-	  types.add(fresh);
 	};
 
 	// specialize body given new substitutions
@@ -193,32 +191,6 @@ static type::poly generalize(const context& ctx, type::mono t) {
 }
 
 
-// constant types for literals
-template<class T> struct traits;
-
-template<> struct traits<int> {
-
-  static type::lit type() {
-	return {"int"};
-  }
-};
-
-template<> struct traits<bool> {
-
-  static type::lit type() {
-	return {"bool"};
-  }
-};
-
-template<> struct traits<void> {
-  
-  static type::lit type() {
-	return {"void"};
-  }
-
-  
-};
-
 
 
 
@@ -234,7 +206,7 @@ struct algorithm_w {
 	if(it == c.end()) {
 	  // TODO type_error ?
 	  std::string msg = "undeclared variable: ";
-	  throw std::runtime_error(msg + v.name);
+	  throw std::runtime_error(msg + v);
 	}
 
 	// specialize polytype for variable
@@ -251,12 +223,10 @@ struct algorithm_w {
 
 	// get a fresh type for result
 	type::mono fresh = type::var();
-	types.add(fresh);
 
 	{
 	  // form function type
 	  type::app app = { shared(args), shared(fresh) };
-	  types.add(app);
 	  
 	  // try to unify abstract function type with actual function type
 	  unify(types, func, app);
@@ -271,7 +241,6 @@ struct algorithm_w {
 
 	// get a fresh type for args
 	type::mono from = type::var();
-	types.add(from);
 
 	// add assumption to the context
 	context sub = c;
@@ -286,8 +255,6 @@ struct algorithm_w {
 	// actual arguments
 	type::app res = {std::make_shared<type::mono>(from),
 					 std::make_shared<type::mono>(to)};
-	types.add(res);
-	
 	return res;
 
   }
@@ -317,8 +284,7 @@ struct algorithm_w {
   // litterals: constant types
   template<class T>
   type::mono operator()(const ast::lit<T>& , context& ) const {
-	type::mono res = traits<T>::type();
-	types.add(res);
+	type::mono res = type::traits<T>::type();
 	return res;
   }
   
@@ -333,6 +299,10 @@ type::poly hindley_milner(const context& ctx, const ast::expr& e) {
   type::mono t = e.apply<type::mono>( algorithm_w{types}, c);
   type::mono r = represent(types, t);
   type::poly p = generalize(c, r);
+
+  // std::cerr << "hm mono: " << t << std::endl;
+  // std::cerr << "hm repr: " << r << std::endl;
+  // std::cerr << "hm poly: " << p << std::endl;    
   
   return p;
 }

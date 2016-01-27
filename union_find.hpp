@@ -8,8 +8,19 @@
 template<class T>
 class union_find {
   using rank_type =  std::map<T, int>;
-  using parent_type = std::map<T, T>;
 
+  // insert 
+  struct parent_type : std::map<T, T> {
+
+
+	T& operator[](const T& key) {
+	  auto it = this->insert( std::make_pair(key, key) );
+
+	  return it.first->second;
+	}
+	
+  };
+  
   rank_type rank;
   parent_type parent;
 

@@ -11,9 +11,9 @@ CONFIG += warn_on
 SOURCES = common.cpp sexpr.cpp ast.cpp type.cpp parse.cpp syntax.cpp hindley_milner.cpp main.cpp lisp.cpp repl.cpp
 LIBS += -lreadline
 
-# CONFIG = debug
+CONFIG = debug
 
 release {
-	QMAKE_CXXFLAGS += -g
+	# QMAKE_CXXFLAGS += -g
 	DEFINES += NDEBUG
 }

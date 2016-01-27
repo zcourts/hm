@@ -133,6 +133,17 @@ struct lisp_handler {
 struct hm_handler {
   mutable context ctx;
 
+  hm_handler() {
+
+	ctx[ symbolize("+") ] = type::mono( type::integer >> type::integer );
+	ctx[ symbolize("-") ] = type::mono( type::integer >> type::integer );
+
+	// TODO n-ary function
+	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		
+
+  }
+
+  
   void operator()(const sexpr::list& prog) const {
 	try {
 	  for(const sexpr::expr& s : prog ) {
@@ -158,7 +169,7 @@ struct hm_handler {
 		  ctx[tmp.id] = p;
 
 		  // TODO eval
-		  std::cout << self.id.name << " :: " << p << std::endl;
+		  std::cout << self.id << " :: " << p << std::endl;
 		}
 	  }
 	}	
@@ -181,8 +192,8 @@ int main(int argc, const char* argv[] ) {
   
   std::cout << std::boolalpha;
   
-  sexpr_parser handler = { lisp_handler{} };
-  // sexpr_parser handler = { hm_handler{} };  
+  // sexpr_parser handler = { lisp_handler{} };
+  sexpr_parser handler = { hm_handler{} };  
 
   if( argc > 1) {
 	std::ifstream file(argv[1]);

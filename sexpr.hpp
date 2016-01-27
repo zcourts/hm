@@ -6,15 +6,19 @@
 
 #include <ostream>
 
+#include <iostream>
+
 // parse tree
 namespace sexpr {
 
+  // TODO make list a ref<list_type> so that boost spirit does not
+  // copy lists recursively during parsing (no move semantics in
+  // spirit2 :-/)
   struct list;
   
   using string = std::string;
   using real = double;
   
-  // TODO string, number
   using expr = variant< list, symbol, real, int, bool, string >;
   
   struct list : vec<expr> {
@@ -24,8 +28,13 @@ namespace sexpr {
 	list(vec<expr>&& other) : vec<expr>(std::move(other)) { }
 	list() {}
 
-	list(const list& other) = default;
-	list(list&& other) = default;
+	list(const list& other) : vec<expr>(other) {
+	  // std::cout << "copy called" << std::endl;
+	}
+	
+	list(list&& other) : vec<expr>(std::move(other)) {
+	  // std::cout << "move called" << std::endl;
+	}
 
 
 	list& operator=(const list& other) = default;

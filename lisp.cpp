@@ -26,10 +26,10 @@ namespace lisp {
   // TODO import ?
 
   static struct {
-	std::string define = "define";
-	std::string lambda = "lambda";
+	std::string define = "def";
+	std::string lambda = "fn";
 	std::string quote = "quote";
-	std::string begin = "begin";
+	std::string begin = "do";
 	std::string cond = "cond";
 	std::string set = "set!";
   } keyword;
@@ -151,7 +151,7 @@ namespace lisp {
   };
   
 
-  value eval(environment env, sexpr::expr expr) {
+  value eval(environment env, const sexpr::expr& expr) {
 	return expr.apply<value>(evaluate(), env);
   }
 
@@ -227,7 +227,15 @@ namespace lisp {
 	}
 
 	value operator()(const sexpr::list& self) const {
-	  return shared(self);
+	  list res = shared<list_type>();
+	  res->reserve( self.size() );
+	  
+	  std::transform(self.begin(), self.end(),
+					 std::back_inserter(*res), [&](const sexpr::expr& e) {
+					   return e.apply<value>( quote() );
+					 });
+	  
+	  return res;
 	}
 	
   };
@@ -290,14 +298,23 @@ namespace lisp {
 	  out << self;
 	}
 	
-	void operator()(const string& s, std::ostream& out) const {
-	  out << *s;
+	void operator()(const string& self, std::ostream& out) const {
+	  out << *self;
 	}
 
-	void operator()(const list& x, std::ostream& out) const {
-	  // not quite sure why clang needs this...
-	  using sexpr::operator<<;
-	  out << *x;
+	void operator()(const list& self, std::ostream& out) const {
+	   out << '(';
+	
+	  bool first = true;
+	  for(const auto& xi : *self) {
+		if(!first) {
+		  out << ' ';
+		} else {
+		  first = false;
+		}
+		out << xi;
+	  }
+	  out << ')';
 	}
 
 	// TODO context ?

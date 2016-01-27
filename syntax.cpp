@@ -13,10 +13,10 @@
 
 
 static struct {
-  std::string abs = "func";
+  std::string abs = "fn";
   std::string let = "let";
   std::string def = "def";
-
+  
   std::set<std::string> all = {abs, let, def};
   
 } keyword;
@@ -81,13 +81,15 @@ struct match_expr {
 				   std::back_inserter(terms), transform_expr);
 	
 	// first must be a lambda or a variable
-	if( terms[0].is<ast::abs>() && terms[0].is<ast::var>() ) {
+	if( terms[0].is<ast::abs>() || terms[0].is<ast::var>() ) {
 	  // good
 	} else {
 	  throw std::runtime_error("error in function application");
 	}
 
-	if( terms.size() > 2 ) throw std::runtime_error("multiple function arguments not handled");
+	if( terms.size() > 2 ) {
+	  throw std::runtime_error("multiple function arguments not handled");
+	}
 
 	// TODO unit type for nullary functions ?
 	// TODO ref in func/args 

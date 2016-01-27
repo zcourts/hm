@@ -74,6 +74,10 @@ namespace type {
 
    
 
+  std::ostream& operator<< (std::ostream& out, const mono& p) {
+	p.apply( stream(), out );
+	return out;
+  }
   
   
   std::ostream& operator<< (std::ostream& out, const poly& p) {

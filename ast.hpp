@@ -9,7 +9,9 @@ namespace ast {
 
   // expressions
   template<class T> struct lit;	// literals
-  struct var;					// variables
+  // struct var;					// variables
+  using var = symbol;
+  
   struct abs;					// lambda-abstractions
   struct app;					// applications
   struct let;					// local defintions
@@ -23,12 +25,13 @@ namespace ast {
 
   template<> struct lit<void> { };
 
-  struct var {
-	symbol name;
-	inline bool operator<(const var& other) const {
-	  return name < other.name;
-	}
-  };
+  // struct var {
+  // 	symbol name;
+	
+  // 	inline bool operator<(const var& other) const {
+  // 	  return name < other.name;
+  // 	}
+  // };
 
   // TODO vec for args
   struct abs {
