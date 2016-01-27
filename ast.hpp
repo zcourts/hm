@@ -9,12 +9,7 @@ namespace ast {
 
   // expressions
   template<class T> struct lit;	// literals
-  // struct var;					// variables
-
-  struct var : symbol {
-	using symbol::symbol;
-  };
-  
+  struct var;					// variables
   struct abs;					// lambda-abstractions
   struct app;					// applications
   struct let;					// local defintions
@@ -26,26 +21,22 @@ namespace ast {
 	T value;
   };
 
+  struct var : symbol {
+	using symbol::symbol;
+  };
+
+  
   template<> struct lit<void> { };
 
-  // struct var {
-  // 	symbol name;
-	
-  // 	inline bool operator<(const var& other) const {
-  // 	  return name < other.name;
-  // 	}
-  // };
-
-  // TODO vec for args
   struct abs {
-	var args;
+	vec<var> args;
 	ref<expr> body;
   };
 
   // TODO vec for args
   struct app {
 	ref<expr> func;
-	ref<expr> args;
+	vec<expr> args;
   };
 
   struct let {

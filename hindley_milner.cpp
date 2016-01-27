@@ -196,7 +196,6 @@ static type::poly generalize(const context& ctx, type::mono t) {
 
 struct algorithm_w {
 
-  // TODO reference union-find structure
   union_find<type::mono>& types;
   
   // var
@@ -206,57 +205,81 @@ struct algorithm_w {
 	if(it == c.end()) {
 	  // TODO type_error ?
 	  std::string msg = "undeclared variable: ";
-	  throw std::runtime_error(msg + v.name());
+	  throw type_error(msg + v.name());
 	}
 
 	// specialize polytype for variable
 	return it->second.apply<type::mono>(specialize{types});
   }
 
-  
+
+
   // app
-  type::mono operator()(const ast::app& app, context& c) const {
+  type::mono operator()(const ast::app& self, context& c) const {
 
-	// infer types for func/args
-	type::mono func = app.func->apply<type::mono>(*this, c);
-	type::mono args = app.args->apply<type::mono>(*this, c);
+	// infer types for func
+	type::mono func = self.func->apply<type::mono>(*this, c);
 
-	// get a fresh type for result
-	type::mono fresh = type::var();
+	// fresh output type
+	type::var fresh;
 
-	{
-	  // form function type
-	  type::app app = { shared(args), shared(fresh) };
-	  
-	  // try to unify abstract function type with actual function type
-	  unify(types, func, app);
+	// function type for application: a0 -> (a1 -> (... -> (an -> fresh)))
+	type::mono app = fresh;
 	
-	  return fresh;
+	for(auto it = self.args.rbegin(), end = self.args.rend(); it != end; ++it) {
+	  type::mono ai = it->apply<type::mono>(*this, c);
+	  app = type::app{ shared(ai), shared(app)};
+	};
+
+	// TODO remove special cases by processing ast earlier ?
+	// special case for nullary functions
+	if( self.args.empty() ) {
+	  app = type::app{ shared<type::mono>(type::unit), shared(app) };
 	}
+
+	// unify function type with app
+	unify(types, func, app);
+
+	return fresh;
   }
 
+  
 
-  // abs
-  type::mono operator()(const ast::abs& abs, context& c) const {
+  // abs helper
+  template<class Iterator>
+  type::mono abs(Iterator first, Iterator last, ref<ast::expr> body, context& c) const {
 
-	// get a fresh type for args
-	type::mono from = type::var();
+	const unsigned argc = last - first;
 
-	// add assumption to the context
+	// enriched context
 	context sub = c;
-	sub[abs.args] = from;
 
-	// assert(sub[func.args] == type::mono(from) );
+	type::mono from, to;
 	
-	// infer type for function body, given our assumption
-	type::mono to = abs.body->apply<type::mono>(*this, sub);
+	if( !argc ) {
+	  from = type::unit;
+	} else {
+	  // fresh type
+	  from = type::var();
 
-	// this is our result type, which will be unified during app given
-	// actual arguments
-	type::app res = {std::make_shared<type::mono>(from),
-					 std::make_shared<type::mono>(to)};
-	return res;
+	  // add assumption to the context
+	  sub[ *first ] = from;
+	}
+	
+	if( argc > 1 ) {
+	   // currify args
+	  to = abs(first + 1, last, body, sub);
+	} else {
+	  // infer type from body given assumption
+	  to = body->apply<type::mono>(*this, sub);
+	}
 
+	return type::app{ shared(from), shared(to) };
+  };
+  
+  // abs
+  type::mono operator()(const ast::abs& self, context& c) const {
+	return abs(self.args.begin(), self.args.end(), self.body, c);
   }
 
 
@@ -280,7 +303,6 @@ struct algorithm_w {
 	return body;
   }
 
-  
   // litterals: constant types
   template<class T>
   type::mono operator()(const ast::lit<T>& , context& ) const {

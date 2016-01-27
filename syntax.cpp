@@ -84,16 +84,17 @@ struct match_expr {
 	if( terms[0].is<ast::abs>() || terms[0].is<ast::var>() ) {
 	  // good
 	} else {
-	  throw std::runtime_error("error in function application");
+	  throw syntax_error("expected lambda or variable in function application");
 	}
 
-	if( terms.size() > 2 ) {
-	  throw std::runtime_error("multiple function arguments not handled");
-	}
+	// if( terms.size() > 2 ) {
+	//   throw std::runtime_error("multiple function arguments not handled");
+	// }
 
 	// TODO unit type for nullary functions ?
-	// TODO ref in func/args 
-	return ast::app{ shared(terms[0]), shared(terms[1]) };
+	// TODO ref in func/args
+	vec<ast::expr> args(terms.begin() + 1, terms.end());
+	return ast::app{ shared(terms[0]), args };
   }
 
 
@@ -134,17 +135,15 @@ static ast::expr transform_abs(const sexpr::list& e) {
   if( !e[1].is<sexpr::list>() ) throw syntax_error("argument list expected");
 
   const sexpr::list& args = e[1].as<sexpr::list>();
-  if(args.size() > 1) {
-	std::cerr << "warning: multiple arguments not handled yet" << std::endl;
-  }
   
   ast::abs res;
 
-  for(const auto& a : e[1].as<sexpr::list>() ) {
+  res.args.reserve( args.size() );
+  
+  for(const auto& a : args ) {
 	if( !a.is<symbol>() ) throw syntax_error("arguments must be symbols");
-
-	// TODO push_back
-	res.args = ast::var{a.as<symbol>().name() };
+	
+	res.args.push_back( {a.as<symbol>().name() } );
   }
   
   // body

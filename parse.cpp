@@ -81,7 +81,6 @@ static sexpr::list parse(Iterator first, Iterator last) {
   
   t = qi::string("true") [ _val = val(true) ];
   f = qi::string("false")[ _val = val(false)];
-
   
   boolean = t | f;
   
