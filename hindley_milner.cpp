@@ -8,8 +8,20 @@
 // debug
 #include <iostream>
 
+
+// generalize a monotype given context i.e. quantify all unbound
+// variables
 static type::poly generalize(const context& ctx, type::mono t);
 
+// unify monotypes a and b in union_find structure types
+static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
+
+// get a nice representative for a monotype
+static type::mono represent(union_find<type::mono>& types, const type::mono& t);
+
+
+
+// true if monotype self contains type variable var
 struct contains {
 
   bool operator()(const type::app& self, const type::var& var) const {
@@ -24,7 +36,6 @@ struct contains {
   bool operator()(const type::var& self, const type::var& var) const {
 	return self == var;
   };
-  
   
 };
 
@@ -44,6 +55,8 @@ struct unification_error : type_error {
 	
   }
 };
+
+
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
