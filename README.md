@@ -23,8 +23,6 @@ first :: 'a -> 'b -> 'a
 the primary goal is to study HM type inference, and possibly some
 extensions (subtyping, typeclasses, ...)
 
-## usage
-
 
 ## dependencies
 
@@ -37,9 +35,12 @@ building:
 
 ## building
 
-``` qmake; make; ```
+```
+$ qmake
+$ make
+```
 
-## running
+## usage
 
 ```
 $ ./repl --help
