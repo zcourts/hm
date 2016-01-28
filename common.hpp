@@ -12,6 +12,7 @@ public:
   
   symbol() { }
   symbol(const std::string& );
+  symbol(const char* );
 
   inline bool operator<(const symbol& other) const { return string < other.string; }
   inline bool operator==(const symbol& other) const { return string == other.string; }

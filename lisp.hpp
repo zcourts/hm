@@ -67,6 +67,11 @@ namespace lisp {
 	}
 
 
+	
+	struct key_error : std::runtime_error {
+	  key_error() : std::runtime_error("key not found") { }
+	};
+
 	template<class Fail>
 	inline mapped_type& find(key_type key, Fail&& fail = {} ) {
 	  
@@ -75,8 +80,11 @@ namespace lisp {
 		return it->second;
 	  }
 
-	  if( !parent ) fail();
-
+	  if( !parent ) {
+		fail();
+		throw key_error();
+	  }
+	  
 	  return parent->find(key, std::forward<Fail>(fail));
 	}
 

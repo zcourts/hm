@@ -68,7 +68,7 @@ struct lisp_handler {
   lisp_handler() {
 	using namespace lisp;
 
-	(*env)[ symbol("+") ] = builtin( [](environment, value* first, value* last) -> value {
+	(*env)[ "+" ] = builtin( [](environment, value* first, value* last) -> value {
 		  const unsigned argc = last - first;
 		  if(!argc) throw error("1+ args expected");
 		
@@ -81,7 +81,7 @@ struct lisp_handler {
 		  return res;
 		});
 	
-	(*env)[ symbol("=") ] = builtin( [](environment, value* first, value* last) -> value {
+	(*env)[ "=" ] = builtin( [](environment, value* first, value* last) -> value {
 		const unsigned argc = last - first;
 		if(argc < 2) throw error("2+ args expected");
 
@@ -94,7 +94,7 @@ struct lisp_handler {
 		return true;
 	  });	
 
-	(*env)[ symbol("-") ] = builtin( [](environment, value* first, value* last ) -> value {
+	(*env)[ "-" ] = builtin( [](environment, value* first, value* last ) -> value {
 		const unsigned argc = last - first;
 		if(!argc) throw error("1+ args expected");
 		
@@ -110,12 +110,57 @@ struct lisp_handler {
 		return res;
 	  });
 
+
+	(*env)[ "make-env" ] = builtin( [](environment, value* first, value* last) -> value {
+		const unsigned argc = last - first;
+		if(argc) throw error("unexpected argument");
+
+		return shared<environment_type>();
+	  });
+
+	(*env)[ "@" ] = builtin( [](environment, value* first, value* last) -> value {
+
+		const unsigned argc = last - first;
+
+		if(argc != 2 ) throw error("expected 2 arguments");
+		
+		if( !first[0].is<environment>() ) throw error("expected environment");
+		if( !first[1].is<symbol>() ) throw error("expected symbol");
+
+		auto& self = first[0].as<environment>();
+		auto& s = first[1].as<symbol>();
+
+		auto& var = self->find(s, [&] {
+			throw error("key not found " + std::string(s.name()) );
+		  });
+		
+		return var;
+	  });
+
+	(*env)[ "@!" ] = builtin( [](environment, value* arg, value* end) -> value {
+		
+		const unsigned argc = end - arg;
+
+		if(argc != 3 ) throw error("expected 3 arguments");
+		
+		if( !arg[0].is<environment>() ) throw error("expected environment");
+		if( !arg[1].is<symbol>() ) throw error("expected symbol");
+
+		auto& self = arg[0].as<environment>();
+		auto& s = arg[1].as<symbol>();
+
+		(*self)[s] = arg[2];
+		return nil();
+		
+	  });	
+	
   }
+
   
   void operator()(const sexpr::list& prog) const {
 	try {
 	  
-	  for(const auto& s : prog) {
+	  for(const sexpr::expr& s : prog) {
 		// std::cout << s << std::endl;
 		const lisp::value res = lisp::eval(env, s);
 
@@ -132,14 +177,16 @@ struct lisp_handler {
   
 };
 
+
+
 struct hm_handler {
   mutable context ctx;
 
   hm_handler() {
 
-	ctx[ ast::var("+") ] = type::mono( type::integer >>= type::integer >>= type::integer);
-	ctx[ ast::var("-") ] = type::mono( type::integer >>= type::integer >>= type::integer);
-	ctx[ ast::var("=") ] = type::mono( type::integer >>= type::integer >>= type::boolean);
+	ctx[ "+" ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ "-" ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ "=" ] = type::mono( type::integer >>= type::integer >>= type::boolean);
 
 	// this is just for type inference purpose
 	{

@@ -152,7 +152,12 @@ namespace lisp {
   
 
   value eval(environment env, const sexpr::expr& expr) {
-	return expr.apply<value>(evaluate(), env);
+	try { 
+	  return expr.apply<value>(evaluate(), env);
+	} catch( error& e ) {
+	  std::cerr << "when evaluating: " << expr << '\n';
+	  throw e;
+	}
   }
 
 

@@ -10,6 +10,7 @@ static std::set<std::string> table;
 // }
 
 symbol::symbol(const std::string& s) : string(  table.insert(s).first->c_str() ) { }
+symbol::symbol(const char* s) : string(  table.insert(s).first->c_str() ) { }
 
 std::ostream& operator << (std::ostream& out, const symbol& self) {
   return out << self.name();
