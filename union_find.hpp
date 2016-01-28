@@ -4,7 +4,6 @@
 #include <map>
 #include <boost/pending/disjoint_sets.hpp>
 
-
 template<class T>
 class union_find {
   using rank_type =  std::map<T, int>;

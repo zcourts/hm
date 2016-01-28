@@ -116,7 +116,7 @@ struct lisp_handler {
 	try {
 	  
 	  for(const auto& s : prog) {
-		std::cout << s << std::endl;
+		// std::cout << s << std::endl;
 		const lisp::value res = lisp::eval(env, s);
 
 		if(!res.is<lisp::nil>()) {

@@ -277,12 +277,33 @@ namespace lisp {
 
   
   static value eval_begin(environment env, const sexpr::list& list) {
-	throw unimplemented;
-  }
+	assert( check_special(list, keyword.begin));
 
+	value res = nil();
+	for(unsigned i = 1, n = list.size(); i < n; ++i) {
+
+	  res = eval(env, list[i]);
+	}
+
+	return res;
+  }
+  
   
   static value eval_set(environment env, const sexpr::list& list) {
-	throw unimplemented;
+	assert( check_special(list, keyword.set));
+
+	if( list.size() != 3 ) throw error("bad set! syntax");
+
+	if( !list[1].is<symbol>() ) throw error("variable name expected");
+
+	const auto& s = list[1].as<symbol>();
+	
+	auto& var = env->find(s, [s] {
+		throw error("unknown variable " + std::string(s.name()));
+	  });
+
+	var = eval(env, list[2]);
+	return nil();
   }
 
 

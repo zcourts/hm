@@ -68,7 +68,7 @@ namespace lisp {
 
 
 	template<class Fail>
-	inline const mapped_type& find(key_type key, Fail&& fail = {} ) const {
+	inline mapped_type& find(key_type key, Fail&& fail = {} ) {
 	  
 	  auto it = environment_type::map::find(key);
 	  if( it != end() ) {
