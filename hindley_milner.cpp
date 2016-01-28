@@ -8,6 +8,7 @@
 // debug
 #include <iostream>
 
+#include "debug.hpp"
 
 
 // unify monotypes @a and @b in union_find structure @types
@@ -18,7 +19,12 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
 struct contains {
 
   bool operator()(const type::app& self, const type::var& var) const {
-	return self.from->apply<bool>(*this, var) ||  self.to->apply<bool>(*this, var);
+
+	for(const auto& t : self->args) {
+	  if(t == var) return true;
+	}
+
+	return false;
   };
 
 
@@ -53,7 +59,8 @@ struct unification_error : type_error {
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
-  // std::cout << "unifying: " << a << " with: " << b << std::endl;
+  debug() << "unifying: " << a << " with: " << b << std::endl;
+  
   using namespace type;
   
   // find representative for each type
@@ -63,9 +70,22 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
   if( a.is<app>() && b.is<app>() ) {
 	// TODO generalize to other type constructors, with arity check
 
-	// unify each parameters
-	unify(types, *a.as< app >().from, *b.as< app >().from);
-	unify(types, *a.as< app >().to,   *b.as< app >().to);
+	auto& ta = a.as<app>();
+	auto& tb = b.as<app>();
+
+	// check constructors
+	if( ta->ctor != tb->ctor ) {
+	  throw unification_error(a, b);
+	}
+
+	assert( ta->args.size() == tb->args.size());
+	assert( ta->args.size() == ta->ctor.arity() );
+	assert( tb->args.size() == tb->ctor.arity() );	
+
+	// unify arg-wise
+	for(unsigned i = 0, n = ta->args.size(); i < n; ++i) {
+	  unify(types, ta->args[i], tb->args[i]);
+	}
 	
   } else if( a.is<var>() || b.is<var>() ) {
 
@@ -110,15 +130,16 @@ struct instantiate {
 
 	
 	type::mono operator()(const type::app& self, substitution&& s) const {
-	  // TODO should we make new substitutions ?
-	  
-	  // instantiate from/to and get representants
-	  type::mono sfrom = self.from->apply<type::mono>(*this, substitution(s) );
-	  type::mono sto = self.to->apply<type::mono>(*this, substitution(s) );	  
-	  
-	  type::app res = {shared(sfrom), shared(sto)};
+	  // TODO reuse substitution ?
 
-	  return res;
+	  vec<type::mono> args;
+	  args.reserve( self->args.size() );
+	  
+	  for(const auto& t : self->args) {
+		args.push_back( t.apply<type::mono>(*this, substitution(s)) );
+	  }
+	  
+	  return std::make_shared<type::app_type>(self->ctor, args);
 	}
 	
 	type::mono operator()(const type::lit& self, substitution&& ) const {
@@ -152,15 +173,16 @@ struct instantiate {
 
 
 // list all variables in monotype
-static void get_vars(std::set<type::var>& out, type::mono t) {
+static void get_vars(std::set<type::var>& out, const type::mono& t) {
   using namespace type;
-
+  
   if(t.is<var>() ) {
 	out.insert( t.as<var>() );
   } else if( t.is<app>() ) {
-	auto& self = t.as< app >();
-	get_vars(out, *self.from);
-	get_vars(out, *self.to);
+
+	for(const auto& t : t.as<app>()->args) {
+	  get_vars(out, t);
+	}	  
   }
  
 }
@@ -212,6 +234,20 @@ type::poly generalize(const context& ctx, type::mono t) {
 }
 
 
+struct debug_rule {
+  const char* const id;
+
+  template<class... Args>
+  debug_rule(const char* id, Args&&... args) :id(id) {
+	auto& out = debug(1) << ">> " << id;
+	int unpack[] = {(out << " " << args, 0)...};
+	out << std::endl;
+  }
+
+  ~debug_rule() {
+	debug(-1) << "<< " << id << std::endl;
+  }
+};
 
 
 // yep
@@ -221,6 +257,8 @@ struct algorithm_w {
   
   // var
   type::mono operator()(const ast::var& v, context& c) const {
+	debug_rule _("var:", v);
+	
 	auto it = c.find(v);
 
 	if(it == c.end()) {
@@ -236,7 +274,8 @@ struct algorithm_w {
 
   // app
   type::mono operator()(const ast::app& self, context& c) const {
-
+	debug_rule _("app");
+	
 	// infer type for function
 	type::mono func = self.func->apply<type::mono>(*this, c);
 
@@ -248,13 +287,13 @@ struct algorithm_w {
 	
 	for(auto it = self.args.rbegin(), end = self.args.rend(); it != end; ++it) {
 	  type::mono ai = it->apply<type::mono>(*this, c);
-	  app = type::app{ shared(ai), shared(app)};
+	  app = (ai >>= app); // type::app{ shared(ai), shared(app)};
 	};
 
 	// TODO remove special cases by processing ast earlier ?
 	// special case for nullary functions
 	if( self.args.empty() ) {
-	  app = type::app{ shared<type::mono>(type::unit), shared(app) };
+	  app = type::unit >>= app; // type::app{ shared<type::mono>(type::unit), shared(app) };
 	}
 
 	// unify function type with app
@@ -269,7 +308,6 @@ struct algorithm_w {
   // helper
   template<class Iterator>
   type::mono abs(Iterator first, Iterator last, ref<ast::expr> body, context& c) const {
-
 	const unsigned argc = last - first;
 
 	// enriched context with argument type
@@ -298,18 +336,23 @@ struct algorithm_w {
 	  to = body->apply<type::mono>(*this, sub);
 	}
 
-	return type::app{ shared(from), shared(to) };
+	type::mono res = types.find(from) >>= to;
+	
+	return res;
   };
+  
   
   // abs
   type::mono operator()(const ast::abs& self, context& c) const {
+	debug_rule _("abs");
 	return abs(self.args.begin(), self.args.end(), self.body, c);
   }
 
 
   // let
   type::mono operator()(const ast::let& let, context& c) const {
-
+	debug_rule _("let:", let.id);
+	
 	// infer type for definition
 	type::mono def = let.value->apply<type::mono>(*this, c);
 

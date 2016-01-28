@@ -8,19 +8,36 @@ namespace type {
   
   unsigned var::total = 0;
 
-  bool app::operator<(const app& other) const {
-	return  (*from < *other.from) || ((*from == *other.from) && (*to < *other.to));
+  // bool app::operator<(const app& other) const {
+  // 	return  (*from < *other.from) || ((*from == *other.from) && (*to < *other.to));
+  // }
+
+
+  // bool app::operator==(const app& other) const {
+  // 	return  (*from == *other.from) && (*to == *other.to);
+  // }
+
+  app_type::app_type(const constructor& ctor,
+					 const vec<mono>& args)
+	: ctor(ctor),
+	  args(args) {
+	if( ctor.arity() != args.size() ) {
+	  throw std::runtime_error("arity error for " + std::string(ctor.name()));
+	}
   }
-
-
-  bool app::operator==(const app& other) const {
-	return  (*from == *other.from) && (*to == *other.to);
-  }
-
+  
   struct stream {
 
-	mutable std::map<type::var, unsigned> context;
+	typedef std::map<type::var, unsigned> context_type;
+	context_type& context;
 
+	stream(context_type& context, bool parentheses = false)
+	  : context( context ),
+		parentheses( parentheses ) {
+	}
+	
+	bool parentheses;
+	
 	// quantified
 	void operator()(const forall& self, std::ostream& out) const {
 	 
@@ -37,17 +54,24 @@ namespace type {
 	}
 
 	void operator()(const app& self, std::ostream& out) const {
-	  const bool is_from_app = self.from->is< app >();
-	  // const bool is_to_app = self.to->is< app >();
 
-	  out << (is_from_app ? "(" : "");
-	  self.from->apply(*this, out);
-	  out << (is_from_app ? ")" : "");
+	  if( parentheses ) out << '(';
+	  
+	  if( self->ctor == func ) { 
+		self->args[0].apply( stream{context, true}, out);
+		out << " -> ";
+		self->args[1].apply( stream{context, false}, out);
+	  } else {
 
-	  out << " -> ";
+		out << self->ctor;
+		
+		for(const type::mono& t : self->args) {
+		  t.apply( stream{context, true}, out );
+		}
+		
+	  }
 
-	  self.to->apply(*this, out);
-		;
+	  if( parentheses ) out << ')';
 	}
 
 
@@ -72,15 +96,44 @@ namespace type {
    
 
   std::ostream& operator<< (std::ostream& out, const mono& p) {
-	p.apply( stream(), out );
+	stream::context_type context;
+	p.apply( stream(context), out );
 	return out;
   }
   
   
   std::ostream& operator<< (std::ostream& out, const poly& p) {
-	p.apply( stream(), out );
+	stream::context_type context;
+	p.apply( stream(context), out );
 	return out;
   }
 
+  const lit integer = traits<int>::type();
+  const lit boolean = traits<bool>::type();
+  const lit unit = traits<void>::type();
 
+  static std::map<constructor, unsigned> arity_map;
+  const constructor func = { "->", 2 };
+
+
+  
+  constructor::constructor(const char* name, unsigned n) : symbol(name) {
+	auto it = arity_map.find(*this);
+	if( it != arity_map.end() ) {
+	  // TODO or simply check that arity is consistent ?
+	  throw std::runtime_error("redefined type constructor lol");
+	}
+	
+	arity_map[*this] = n;
+  }
+
+  unsigned constructor::arity() const {
+	auto it = arity_map.find(*this);
+
+	assert(it != arity_map.end());
+	return it->second;
+  }
+  
+
+  
 }

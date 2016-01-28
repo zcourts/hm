@@ -16,6 +16,7 @@ public:
 
   inline bool operator<(const symbol& other) const { return string < other.string; }
   inline bool operator==(const symbol& other) const { return string == other.string; }
+  inline bool operator!=(const symbol& other) const { return string != other.string; }  
 
   friend std::ostream& operator << (std::ostream& out, const symbol& self);
 };

@@ -15,8 +15,10 @@ namespace type {
   };
   
   struct var;
-  struct app;
 
+  struct app_type;
+  using app = ref<app_type>;
+  
   using mono = variant< app, var, lit >;
   
   struct var {
@@ -31,9 +33,24 @@ namespace type {
 	
   };
 
-  
-  struct app {
-	ref<mono> from, to;
+
+  // type constructor TODO merge with lit
+  struct constructor : symbol {
+	constructor(const char* name, unsigned arity);
+	unsigned arity() const;
+
+  };
+
+
+  // type application
+  struct app_type {
+
+	// arity check TODO move args
+	app_type(const constructor& ctor,
+			 const vec<mono>& args);
+	
+	constructor ctor;
+	vec<mono> args;
 	
 	bool operator<(const app& other) const;
 	bool operator==(const app& other) const;
@@ -98,14 +115,18 @@ namespace type {
 
 
   // some helpers
-  static const type::lit integer = traits<int>::type();
-  static const type::lit boolean = traits<bool>::type();
-  static const type::lit unit = traits<void>::type();
+  extern const lit integer;
+  extern const lit boolean;
+  extern const lit unit;
 
+  // function type
+  extern const constructor func;
+  
 
   // easy function types
-  static inline type::app operator>>=(type::mono lhs, type::mono rhs) {
-	return { shared(lhs), shared(rhs) };
+  static inline app operator>>=(const mono& lhs, const mono& rhs) {
+	app_type res = { func, {lhs, rhs} };
+	return shared(res);
   }
   
 }
