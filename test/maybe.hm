@@ -1,1 +1,2 @@
 (data (maybe a) none (some a))
+(def test (fn (x) (some x)))

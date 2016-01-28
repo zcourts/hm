@@ -22,10 +22,12 @@ namespace impl {
   template<int Level> struct debug_traits<Level, true> {
 	using type = std::ostream&;
 
+
+
 	static inline std::ostream& debug(int delta) {
 	  auto& stream = std::cout;
 	  static int indent = 0;
-
+	  
 	  indent += delta;
 	  indent = std::max(indent, 0);
   

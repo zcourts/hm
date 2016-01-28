@@ -47,6 +47,27 @@ public:
 	return dsets.find_set(x);
   }
 
+
+  friend std::ostream& operator<<(std::ostream& out, union_find& self) {
+	std::map<T, std::vector<T> > classes;
+
+	for(const auto& t : self.parent) {
+	  classes[ self.find(t.first) ].push_back(t.first);
+	}
+
+	for(const auto& c : classes ) {
+	  out << c.first << ":";
+	  for(const auto& x : c.second) {
+		out << " " << x;
+	  }
+
+	  out << '\n';
+	}
+									
+	return out;
+
+  }
+
   
 };
 

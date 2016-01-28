@@ -17,7 +17,7 @@ using context = std::map< ast::var, type::poly >;
 
 // generalize monotype t given context ctx i.e. quantify all variables
 // unbound in ctx
-type::poly generalize(const context& ctx, type::mono t);
+type::poly generalize(const context& ctx, const type::mono& t);
 
 // hindley-milner type inference for expression e in context ctx.
 type::poly hindley_milner(const context& ctx, const ast::expr& e);

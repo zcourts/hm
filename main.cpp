@@ -296,7 +296,7 @@ struct hm_handler {
 	  }
 
 	  ctx.insert( delta.begin(), delta.end() );
-
+	  std::cout << "data " << self.id << std::endl;
 	}
 	
   };

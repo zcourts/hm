@@ -59,7 +59,7 @@ struct unification_error : type_error {
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
-  debug<1>() << "unifying: " << a << " with: " << b << std::endl;
+  debug<2>() << " unifying: " << a << " with: " << b << std::endl;
   
   using namespace type;
   
@@ -96,10 +96,8 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	  throw unification_error(other, self);
 	};
 	
-	// note: other becomes the representative
-	// std::cout << "\tlinking " << type::mono(self) << " and " << other << std::endl;
+	// note: second arg becomes the representative
 	types.link(self, other);
-	// std::cout << "\trepresented by: " << types.find(other) << std::endl;
 	
   } else if( a != b ) {
 	throw unification_error(a, b);
@@ -186,12 +184,35 @@ static void get_vars(std::set<type::var>& out, const type::mono& t) {
  
 }
 
+// select the best representative for type t
+static type::mono represent(union_find<type::mono>& types,
+							const type::mono& t) {
+  // debug_rule _("represent", t);
+  
+  type::mono res = types.find(t);
+
+  if( res.is<type::app>() ) {
+	auto& self = res.as<type::app>();
+	
+	vec<type::mono> args;
+	std::transform(self->args.begin(), self->args.end(), std::back_inserter(args),
+				   [&](const type::mono& t) {
+					 return represent(types, t);
+				   });
+	
+	res = std::make_shared<type::app_type>(self->func, args);
+  }
+
+  return res;  
+}
+
 
 // generalize monotype given context (i.e. quantify all unbound
-// variables)
-type::poly generalize(const context& ctx, type::mono t) {
+// variables). you might want to 'represent' first.
+type::poly generalize(const context& ctx, const type::mono& t) {
   using namespace type;
 
+  
   // all type variables in monotype t
   std::set<var> all;
   get_vars(all, t);
@@ -239,13 +260,13 @@ struct debug_rule {
   
   template<class... Args>
   debug_rule(const char* id, Args&&... args) :id(id) {
-	auto& out = debug<log_level>(1) << ">> " << id;
+	auto& out = debug<log_level>(1) << '(' << id;
 	int unpack[] = {(out << " " << args, 0)...};
 	out << std::endl;
   }
 
   ~debug_rule() {
-	debug<log_level>(-1) << "<< " << id << std::endl;
+	debug<log_level>(-1) << "   " << id << ')' << std::endl;
   }
 };
 
@@ -257,7 +278,7 @@ struct algorithm_w {
   
   // var
   type::mono operator()(const ast::var& v, context& c) const {
-	debug_rule _("var:", v);
+	debug_rule _("var", v);
 	
 	auto it = c.find(v);
 
@@ -276,7 +297,7 @@ struct algorithm_w {
   type::mono operator()(const ast::app& self, context& c) const {
 	debug_rule _("app");
 	
-	// infer type for function
+	// infer type for function 
 	type::mono func = self.func->apply<type::mono>(*this, c);
 
 	// fresh result type
@@ -287,13 +308,13 @@ struct algorithm_w {
 	
 	for(auto it = self.args.rbegin(), end = self.args.rend(); it != end; ++it) {
 	  type::mono ai = it->apply<type::mono>(*this, c);
-	  app = (ai >>= app); // type::app{ shared(ai), shared(app)};
+	  app = ai >>= app; 
 	};
 
 	// TODO remove special cases by processing ast earlier ?
 	// special case for nullary functions
 	if( self.args.empty() ) {
-	  app = type::unit >>= app; // type::app{ shared<type::mono>(type::unit), shared(app) };
+	  app = type::unit >>= app; 
 	}
 
 	// unify function type with app
@@ -336,9 +357,7 @@ struct algorithm_w {
 	  to = body->apply<type::mono>(*this, sub);
 	}
 
-	type::mono res = from >>= to;
-	
-	return res;
+	return from >>= to;
   };
   
   
@@ -348,21 +367,20 @@ struct algorithm_w {
 	return abs(self.args.begin(), self.args.end(), self.body, c);
   }
 
-
   // let
   type::mono operator()(const ast::let& let, context& c) const {
-	debug_rule _("let:", let.id);
+	debug_rule _("let", let.id);
 	
 	// infer type for definition
 	type::mono def = let.value->apply<type::mono>(*this, c);
 
 	// enriched context with local definition
 	context sub = c;
-
+	
 	// generalize as much as possible given current context
-	type::poly gen = generalize(c, def);
+	type::poly gen = generalize(c, represent(types, def));
 	sub[let.id] = gen;
-
+	
 	// infer type for the body given our assumption
 	type::mono body = let.body->apply<type::mono>(*this, sub);
 
@@ -373,36 +391,13 @@ struct algorithm_w {
   // litterals: constant types
   template<class T>
   type::mono operator()(const ast::lit<T>& , context& ) const {
-	type::mono res = type::traits<T>::type();
-	return res;
+	debug_rule _("lit");
+	return type::traits<T>::type();
   }
   
 };
 
 
-
-
-// select the nicest representative for type t
-static type::mono represent(union_find<type::mono>& types,
-							const type::mono& t) {
-
-  type::mono res = types.find(t);
-
-  if( res.is<type::app>() ) {
-	auto& self = res.as<type::app>();
-	
-	vec<type::mono> args;
-	std::transform(self->args.begin(), self->args.end(), std::back_inserter(args),
-				   [&](const type::mono& t) {
-					 return represent(types, t);
-				   });
-	
-	return std::make_shared<type::app_type>(self->func, args);
-  } else  {
-	return res;
-  }
-  
-}
 
 
 type::poly hindley_milner(const context& ctx, const ast::expr& e) {
@@ -420,3 +415,4 @@ type::poly hindley_milner(const context& ctx, const ast::expr& e) {
 }
 
 
+ 

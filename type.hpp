@@ -34,7 +34,7 @@ namespace type {
   };
 
 
-  // TODO name -> type func should be associated externally in a map
+  // TODO name -> type func should be associated externally in a map ?
   // TODO merge lit with nullary type functions ?
 
   // type function

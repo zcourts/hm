@@ -346,16 +346,16 @@ public:
   }
 
 
-  template<class Out>
-  friend Out& operator<<(Out& out, const variant& v) {
+  // template<class Out>
+  // friend Out& operator<<(Out& out, const variant& v) {
 
-	if( !v.valid() ) {
-	  return out << "*uninitialized*";
-	} else {
-	  return v.apply<Out&>( ostream<Out>(), out );
-	}
+  // 	if( !v.valid() ) {
+  // 	  return out << "*uninitialized*";
+  // 	} else {
+  // 	  return v.apply<Out&>( ostream<Out>(), out );
+  // 	}
 	
-  };
+  // };
 
 
   // static type switch from a function object f: (const T&, Args&&...) -> Ret
