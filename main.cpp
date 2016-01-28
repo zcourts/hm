@@ -221,6 +221,7 @@ struct hm_handler {
 	}
 
 
+	// TODO organize this mess
 	void operator()(const ast::data& self, context& ctx) const {
 
 	  // out new type
@@ -234,6 +235,20 @@ struct hm_handler {
 		type::mono t = type::lit{ self.id.name() };
 		
 		// build constructors
+
+		// TODO need type constants in context somehow
+		for(const auto& ctor : self.def) {
+
+		  if(ctor.args.empty() ){
+
+			// define constants
+			delta[ctor.id] = t;
+			
+		  } else {
+			throw std::logic_error("type constants not available yet");
+		  }
+
+		}
 		
 	  } else {
 
@@ -254,6 +269,9 @@ struct hm_handler {
 
 		type::mono t = std::make_shared<type::app_type>(func, args);
 
+		// TODO what if constructors take constant types as args ?
+		// TODO need to expose type constants
+		
 		// now build type constructors and their types
 		for(const auto& ctor : self.def ) {
 
