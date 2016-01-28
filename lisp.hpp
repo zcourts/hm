@@ -11,28 +11,36 @@ namespace lisp {
   using real = sexpr::real;
   using string = ref<sexpr::string>;
 
+  
   struct list_type;
   using list = ref<list_type>;
+
   
   struct lambda_type;
   using lambda = ref<lambda_type>;
+
   
   class environment_type;
   using environment = ref<environment_type>;
 
+  
   struct builtin;
+
   
   struct nil { };
 
+  
   // TODO boost::intrusive_ptr instead of ref<> and make it 2 words
   using value = variant<nil, bool, int, real, symbol, string, list, lambda, environment, builtin>;
 
+  
   struct builtin {
 	using type = value (*)(environment env, value* first, value* last);
 	type ptr;
 	
 	builtin(type ptr = nullptr) : ptr(ptr) { }
   };
+
   
   // make sure we don't accidentally get too large value type
   static_assert( sizeof(value) <= 3 * sizeof( void* ), "too big yo");
@@ -41,8 +49,10 @@ namespace lisp {
 	using std::runtime_error::runtime_error;
   };
 
+  
   std::ostream& operator<<(std::ostream& out, const value& );
 
+  
   class environment_type : public std::enable_shared_from_this<environment_type>,
 						   protected std::map<symbol, value> {
 	environment parent;
@@ -93,6 +103,7 @@ namespace lisp {
 	
   };
 
+  
   struct lambda_type {
 	lambda_type();
    
@@ -106,8 +117,6 @@ namespace lisp {
   };
 
 
-  // transform expression to canonical form
-  sexpr::expr canonicalize(const sexpr::expr& expr);
   
   // evaluates a sexpr in canonical form
   value eval(environment env, const sexpr::expr& expr);

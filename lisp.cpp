@@ -18,8 +18,9 @@ namespace lisp {
   static value eval_quote(environment env, const sexpr::list& list);
   static value eval_cond(environment env, const sexpr::list& list);
   static value eval_begin(environment env, const sexpr::list& list);
-  static value eval_set(environment env, const sexpr::list& list);          
-
+  static value eval_set(environment env, const sexpr::list& list);
+  static value eval_defmacro(environment env, const sexpr::list& list);
+  
   // prototype
   using special_form = value (*) (environment env, const sexpr::list& list);
   
@@ -32,6 +33,8 @@ namespace lisp {
 	std::string begin = "do";
 	std::string cond = "cond";
 	std::string set = "set!";
+	std::string defmacro = "defmacro";
+	
   } keyword;
 
   
@@ -41,10 +44,14 @@ namespace lisp {
 	{keyword.quote, eval_quote},   	
 	{keyword.cond, eval_cond},
 	{keyword.begin, eval_begin},
-	{keyword.set, eval_set}
+	{keyword.set, eval_set},
+	{keyword.defmacro, eval_defmacro}
   };
 
 
+  static std::map<symbol, lambda> macro;
+
+  
   // first expr in self has been evaluated, passed as the first
   // parameter with correct type
   struct apply {
@@ -100,6 +107,21 @@ namespace lisp {
   };
 
 
+
+  template<class Iterator>
+  static sexpr::expr apply_macro(lambda self, Iterator arg, Iterator end) {
+
+	environment sub = self->env->augment(self->args.begin(), self->args.end(),
+										 arg, end);
+
+	// value res = eval(sub, self->body);
+
+	// return res;
+
+  }
+  
+  
+
   struct evaluate {
 
 	// lists
@@ -109,11 +131,35 @@ namespace lisp {
 		throw error("empty list in application");
 	  }
 
-	  // try special forms
 	  if( self[0].is<symbol>() ) {
-		auto it = special.find( self[0].as<symbol>().name() );
-		if( it != special.end() ) return it->second(env, self);
+
+		const auto& s = self[0].as<symbol>();
+		
+		// try special forms
+		{
+		  auto it = special.find( s.name() );
+		  if( it != special.end() ) return it->second(env, self);
+		}
+
+		// try macros
+		{
+		  auto it = macro.find( s.name() );
+		  if( it != macro.end() ) {
+
+			// build macro application 
+			sexpr::list expr = self;
+			// expr[0] = it->second;
+
+			// evaluate macro
+			// sexpr::expr res = eval(env, expr);
+
+			// and evaluate result
+			// return eval(env, res);
+		  }
+		}
 	  }
+
+	  
 
 	  // regular function application
 	  value func = eval(env, self[0]);
@@ -292,6 +338,21 @@ namespace lisp {
 
 	return res;
   }
+
+
+  static value eval_defmacro(environment env, const sexpr::list& list) {
+	assert( check_special(list, keyword.defmacro));
+	
+	if( list.size() != 4 ) throw error("bad defmacro syntax");
+
+	if( !list[1].is<symbol>() ) throw error("symbol expected for macro name");
+
+	sexpr::list expr = {{ symbol( keyword.lambda ), list[2], list[3] }};
+	
+	macro[ list[1].as<symbol>() ] = eval_lambda( env, expr ).as<lambda>();
+
+	return nil();	
+  };
   
   
   static value eval_set(environment env, const sexpr::list& list) {
@@ -365,6 +426,9 @@ namespace lisp {
 
   // this keeps gcc linker happy (??)
   lambda_type::lambda_type() { }
+
+
+ 
   
 }
 
