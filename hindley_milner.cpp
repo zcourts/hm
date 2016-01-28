@@ -59,7 +59,7 @@ struct unification_error : type_error {
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
-  debug() << "unifying: " << a << " with: " << b << std::endl;
+  debug<1>() << "unifying: " << a << " with: " << b << std::endl;
   
   using namespace type;
   
@@ -300,7 +300,7 @@ struct algorithm_w {
 	unify(types, func, app);
 
 	// application has the result type
-	return types.find(result);
+	return result;
   }
 
   
@@ -336,7 +336,7 @@ struct algorithm_w {
 	  to = body->apply<type::mono>(*this, sub);
 	}
 
-	type::mono res = types.find(from) >>= to;
+	type::mono res = from >>= to;
 	
 	return res;
   };
@@ -380,6 +380,31 @@ struct algorithm_w {
 };
 
 
+
+
+// select the nicest representative for type t
+static type::mono represent(union_find<type::mono>& types,
+							const type::mono& t) {
+
+  type::mono res = types.find(t);
+
+  if( res.is<type::app>() ) {
+	auto& self = res.as<type::app>();
+	
+	vec<type::mono> args;
+	std::transform(self->args.begin(), self->args.end(), std::back_inserter(args),
+				   [&](const type::mono& t) {
+					 return represent(types, t);
+				   });
+	
+	return std::make_shared<type::app_type>(self->func, args);
+  } else  {
+	return res;
+  }
+  
+}
+
+
 type::poly hindley_milner(const context& ctx, const ast::expr& e) {
 
   context c = ctx;
@@ -389,7 +414,7 @@ type::poly hindley_milner(const context& ctx, const ast::expr& e) {
   type::mono t = e.apply<type::mono>( algorithm_w{types}, c);
 
   // generalize as much as possible given context
-  type::poly p = generalize(c, t);
+  type::poly p = generalize(c, represent(types, t) );
 
   return p;
 }

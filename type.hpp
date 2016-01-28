@@ -48,7 +48,7 @@ namespace type {
   struct app_type {
 
 	// arity check TODO move args
-	app_type(const abs& ctor,
+	app_type(const abs& func,
 			 const vec<mono>& args);
 	
 	abs func;

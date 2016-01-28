@@ -13,6 +13,7 @@ LIBS += -lreadline -lboost_program_options -lstdc++
 
 CONFIG = debug
 # DEFINES += LOG_LEVEL=2
+
 release {
 	# QMAKE_CXXFLAGS += -g
 	DEFINES += NDEBUG
