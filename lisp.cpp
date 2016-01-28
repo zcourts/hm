@@ -57,64 +57,70 @@ namespace lisp {
   struct apply {
 	
 	// lambda application
-	value operator()(const lambda& func, environment env, const sexpr::list& self) const {
-	  assert( !self.empty() );
+	template<class Iterator>
+	value operator()(const lambda& self, environment env, Iterator arg, Iterator end) const {
+	  const unsigned argc = end - arg;
 
 	  // TODO varargs
-	  if(func->args.size() != self.size() - 1) {
+	  if(self->args.size() != argc) {
 		throw error("bad argument count");
 	  }
-
+	  
 	  environment sub;
 
 	  {
 		// vla for args 
-		macro_vla(value, args, self.size() - 1);
+		macro_vla(value, args, argc);
 
-		for(unsigned i = 0; i < args.size; ++i) {
-		  args.data[i] = eval(env, self[i + 1]);
+		for(Iterator it = arg; it != end; ++it) {
+		  const unsigned i = it - arg;
+		  args.data[i] = eval(env, *it);
 		}
-	  
+		
 		// augment environment from args 
-		sub = env->augment(func->args.begin(), func->args.end(),
-						   args.begin(), args.end() );
+		sub = env->augment(self->args.begin(), self->args.end(), args.begin(), args.end() );
 	  }
 	  
-	  return eval(sub, func->body);
+	  return eval(sub, self->body);
 
 	}
 
 
-	value operator()(const builtin& func, environment env, const sexpr::list& self) const {
+	// builtin application
+	template<class Iterator>
+	value operator()(const builtin& self, environment env, Iterator arg, Iterator end) const {
 
-	   // vla for args 
-	  macro_vla(value, args, self.size() - 1);
+	   // vla for args
+	  const unsigned argc = end - arg;
+	  macro_vla(value, args, argc);
 
-	  for(unsigned i = 0; i < args.size; ++i) {
-		args.data[i] = eval(env, self[i + 1]);
+	  for(Iterator it = arg; it != end; ++it) {
+		const unsigned i = it - arg;
+		args.data[i] = eval(env, *it);
 	  }
 	  
 	  // call builtin 
-	  return func.ptr(env, args.begin(), args.end() );
+	  return self.ptr(env, args.begin(), args.end() );
 	}
 	
 
-	template<class T>
-	value operator()(const T& , environment , const sexpr::list& ) const {
+	template<class T, class Iterator>
+	value operator()(const T& , environment , Iterator, Iterator ) const {
 	  throw error("invalid type in application");
 	}
 
   };
 
 
-
   template<class Iterator>
   static sexpr::expr apply_macro(lambda self, Iterator arg, Iterator end) {
 
+	// TODO we need to quote sexpr args to make them values
 	environment sub = self->env->augment(self->args.begin(), self->args.end(),
 										 arg, end);
 
-	// value res = eval(sub, self->body);
+	// TODO we need to 
+	//  eval(sub, self->body)
 
 	// return res;
 
@@ -163,7 +169,7 @@ namespace lisp {
 
 	  // regular function application
 	  value func = eval(env, self[0]);
-	  return func.apply<value>( apply(), env, self );
+	  return func.apply<value>( apply(), env, self.begin() + 1, self.end() );
 	}
 
 	
