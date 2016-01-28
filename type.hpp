@@ -34,22 +34,24 @@ namespace type {
   };
 
 
-  // type constructor TODO merge with lit
-  struct constructor : symbol {
-	constructor(const char* name, unsigned arity);
-	unsigned arity() const;
+  // TODO name -> type func should be associated externally in a map
+  // TODO merge lit with nullary type functions ?
 
+  // type function
+  struct abs : symbol {
+	abs(const char* name, unsigned arity);
+	unsigned arity() const;
   };
 
-
+  
   // type application
   struct app_type {
 
 	// arity check TODO move args
-	app_type(const constructor& ctor,
+	app_type(const abs& ctor,
 			 const vec<mono>& args);
 	
-	constructor ctor;
+	abs func;
 	vec<mono> args;
 	
 	bool operator<(const app& other) const;
@@ -88,6 +90,7 @@ namespace type {
 	static type::lit type() {
 	  return {"real"};
 	}
+	
   };
 
   template<> struct traits<bool> {
@@ -120,10 +123,10 @@ namespace type {
   extern const lit unit;
 
   // function type
-  extern const constructor func;
+  extern const abs func;
   
 
-  // easy function types
+  // easy function types (right-associative)
   static inline app operator>>=(const mono& lhs, const mono& rhs) {
 	app_type res = { func, {lhs, rhs} };
 	return shared(res);

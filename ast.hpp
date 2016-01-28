@@ -47,15 +47,31 @@ namespace ast {
   };
 
 
-  // definitions
+  // variable definitions
   struct def {
 	var id;
 	ref<expr> value;
   };
 
 
-  // complete syntax TODO types ?
-  using node = variant<expr, def>;
+  // datatype definitions
+  struct data {
+
+	var id;
+	vec<var> args;
+
+	struct constructor {
+	  var id;
+	  vec<var> args;
+	};
+	
+	// list of type constructors
+	vec< constructor > def;
+  };
+
+
+  // complete syntax
+  using node = variant<expr, def, data>;
   
 }
 

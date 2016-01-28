@@ -68,19 +68,18 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
   b = types.find(b);
   
   if( a.is<app>() && b.is<app>() ) {
-	// TODO generalize to other type constructors, with arity check
 
 	auto& ta = a.as<app>();
 	auto& tb = b.as<app>();
 
-	// check constructors
-	if( ta->ctor != tb->ctor ) {
+	// check type func
+	if( ta->func != tb->func ) {
 	  throw unification_error(a, b);
 	}
 
 	assert( ta->args.size() == tb->args.size());
-	assert( ta->args.size() == ta->ctor.arity() );
-	assert( tb->args.size() == tb->ctor.arity() );	
+	assert( ta->args.size() == ta->func.arity() );
+	assert( tb->args.size() == tb->func.arity() );	
 
 	// unify arg-wise
 	for(unsigned i = 0, n = ta->args.size(); i < n; ++i) {
@@ -139,7 +138,7 @@ struct instantiate {
 		args.push_back( t.apply<type::mono>(*this, substitution(s)) );
 	  }
 	  
-	  return std::make_shared<type::app_type>(self->ctor, args);
+	  return std::make_shared<type::app_type>(self->func, args);
 	}
 	
 	type::mono operator()(const type::lit& self, substitution&& ) const {
@@ -196,7 +195,7 @@ type::poly generalize(const context& ctx, type::mono t) {
   // all type variables in monotype t
   std::set<var> all;
   get_vars(all, t);
-  
+
   // TODO: maintain this set together with context ?
   std::set< var > bound;
 
@@ -209,8 +208,7 @@ type::poly generalize(const context& ctx, type::mono t) {
 	  }
 	};
   }
-  
-  
+
   std::set<var> diff;
 
   std::set_difference(all.begin(), all.end(),
@@ -223,12 +221,12 @@ type::poly generalize(const context& ctx, type::mono t) {
   } else {
 	forall res;
 	
-	std::copy(diff.begin(), diff.end(),
-			  std::back_inserter(res.args));
+	std::copy(diff.begin(), diff.end(), std::back_inserter(res.args));
 
 	// TODO does this work ?
 	// watch out: we want deep copy with class representatives
 	res.body = shared<poly>(t);
+
 	return res;
   }
 }
@@ -237,15 +235,17 @@ type::poly generalize(const context& ctx, type::mono t) {
 struct debug_rule {
   const char* const id;
 
+  static constexpr int log_level = 2;
+  
   template<class... Args>
   debug_rule(const char* id, Args&&... args) :id(id) {
-	auto& out = debug(1) << ">> " << id;
+	auto& out = debug<log_level>(1) << ">> " << id;
 	int unpack[] = {(out << " " << args, 0)...};
 	out << std::endl;
   }
 
   ~debug_rule() {
-	debug(-1) << "<< " << id << std::endl;
+	debug<log_level>(-1) << "<< " << id << std::endl;
   }
 };
 

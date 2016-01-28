@@ -17,14 +17,15 @@ namespace type {
   // 	return  (*from == *other.from) && (*to == *other.to);
   // }
 
-  app_type::app_type(const constructor& ctor,
+  app_type::app_type(const abs& func,
 					 const vec<mono>& args)
-	: ctor(ctor),
+	: func(func),
 	  args(args) {
-	if( ctor.arity() != args.size() ) {
-	  throw std::runtime_error("arity error for " + std::string(ctor.name()));
+	if( func.arity() != args.size() ) {
+	  throw std::runtime_error("arity error for " + std::string(func.name()));
 	}
   }
+
   
   struct stream {
 
@@ -40,7 +41,7 @@ namespace type {
 	
 	// quantified
 	void operator()(const forall& self, std::ostream& out) const {
-	 
+
 	  // add stuff to context
 	  for(unsigned i = 0, n = self.args.size(); i < n; ++i) {
 		context[self.args[i]] = context.size();
@@ -57,16 +58,16 @@ namespace type {
 
 	  if( parentheses ) out << '(';
 	  
-	  if( self->ctor == func ) { 
+	  if( self->func == func ) { 
 		self->args[0].apply( stream{context, true}, out);
 		out << " -> ";
 		self->args[1].apply( stream{context, false}, out);
 	  } else {
 
-		out << self->ctor;
+		out << self->func;
 		
 		for(const type::mono& t : self->args) {
-		  t.apply( stream{context, true}, out );
+		  t.apply( stream{context, true}, out << " " );
 		}
 		
 	  }
@@ -112,12 +113,12 @@ namespace type {
   const lit boolean = traits<bool>::type();
   const lit unit = traits<void>::type();
 
-  static std::map<constructor, unsigned> arity_map;
-  const constructor func = { "->", 2 };
+  static std::map<abs, unsigned> arity_map;
+  const abs func = { "->", 2 };
 
 
   
-  constructor::constructor(const char* name, unsigned n) : symbol(name) {
+  abs::abs(const char* name, unsigned n) : symbol(name) {
 	auto it = arity_map.find(*this);
 	if( it != arity_map.end() ) {
 	  // TODO or simply check that arity is consistent ?
@@ -127,7 +128,7 @@ namespace type {
 	arity_map[*this] = n;
   }
 
-  unsigned constructor::arity() const {
+  unsigned abs::arity() const {
 	auto it = arity_map.find(*this);
 
 	assert(it != arity_map.end());

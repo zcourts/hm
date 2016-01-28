@@ -199,34 +199,97 @@ struct hm_handler {
 
   }
 
+
+
+  struct type_check {
+
+	void operator()(const ast::expr& self, const context& ctx) const {
+	  type::poly p = hindley_milner(ctx, self);
+	  std::cout << " :: " << p << std::endl;
+	}
+
+	void operator()(const ast::def& self, context& ctx) const {
+	  // we infer type using: (def x y) => (let x y x)
+	  ast::let tmp = {self.id, self.value, shared<ast::expr>(self.id)};
+	  type::poly p = hindley_milner(ctx, tmp);
+	  
+	  // add to type context
+	  ctx[tmp.id] = p;
+
+	  // TODO eval
+	  std::cout << self.id << " :: " << p << std::endl;
+	}
+
+
+	void operator()(const ast::data& self, context& ctx) const {
+
+	  // out new type
+	  type::poly p;
+
+	  // our new definitions
+	  context delta;
+	  
+	  if( self.args.empty()) {
+		// new literal type
+		type::mono t = type::lit{ self.id.name() };
+		
+		// build constructors
+		
+	  } else {
+
+		// TODO not quite sure ...
+		using type_context = std::map< ast::var, type::mono >;
+		type_context sub;
+		
+		// new type function
+		type::abs func(self.id.name(), self.args.size());
+
+		// fresh type variables for parameters		
+		vec<type::mono> args;
+		for(const auto& v : self.args ) {
+		  type::var fresh;
+		  sub[v] = fresh;
+		  args.push_back( fresh );
+		}
+
+		type::mono t = std::make_shared<type::app_type>(func, args);
+
+		// now build type constructors and their types
+		for(const auto& ctor : self.def ) {
+
+		  type::mono app = t;
+
+		  for(auto i = ctor.args.rbegin(), end = ctor.args.rend(); i != end; ++i) {
+
+			auto it = sub.find(*i);
+			if(it == sub.end()) {
+			  throw type_error("unknown type parameter " + std::string(i->name()));
+			}
+
+			app = (it->second >>= app);
+		  }
+
+		  type::poly p = generalize(ctx, app);
+		  
+		  delta[ ctor.id ] = p;
+		}
+		
+		
+	  }
+
+	  ctx.insert( delta.begin(), delta.end() );
+
+	}
+	
+  };
+  
   
   void operator()(const sexpr::list& prog) const {
 	try {
 	  for(const sexpr::expr& s : prog ) {
 		const ast::node e = transform( s );
-
-		if( e.is<ast::expr>() ) {
-		  type::poly p = hindley_milner(ctx, e.as<ast::expr>());
-		  std::cout << s << " :: " << p << std::endl;
-		}
-	  
-		if( e.is<ast::def>() ) {
-		  auto& self = e.as<ast::def>();
-
-		  // we infer type using: (def x y) => (let x y x)
-		  ast::let tmp;
-		  tmp.id = self.id;
-		  tmp.value = self.value;
-		  tmp.body = shared<ast::expr>(self.id);
-
-		  type::poly p = hindley_milner(ctx, tmp);
-
-		  // add to type context
-		  ctx[tmp.id] = p;
-
-		  // TODO eval
-		  std::cout << self.id << " :: " << p << std::endl;
-		}
+		e.apply(type_check(), ctx);
+		
 	  }
 	}	
 	catch( syntax_error& e ) {
