@@ -74,10 +74,10 @@ namespace lisp {
 	  }
 
 	  
-	  // regular args
+	  // augment captured context with args
 	  environment sub = self->env->augment(self->args.begin(), self->args.end(),
 										   arg, arg + self->args.size());
-
+	  
 	  // varargs
 	  if( self->vararg ) {
 		(*sub)[ *self->vararg ] = std::make_shared<vec<value>>(arg + self->args.size(), end);
@@ -237,9 +237,7 @@ namespace lisp {
 	
 	const unsigned argc = end - arg;
 	
-	if( argc != 2 ) {
-	  throw error("bad lambda syntax");
-	}
+	if( argc != 2 ) throw error("bad lambda syntax");
 	
 	if( !arg->is<list>() && !arg->is<symbol>() ) {
 	  throw error("expected variable list or symbol for lambda arguments");
@@ -250,14 +248,11 @@ namespace lisp {
 	if( arg->is<symbol>() ) {
 	  res->vararg = shared(arg->as<symbol>());
 	} else {
-	  
 	  auto& args = arg->as<list>();
 
-	  // check
+	  // check args are symbols
 	  for(const auto& a : *args) {
-		if( !a.is<symbol>() ) {
-		  throw error("variable declarations must be symbols");
-		} 
+		if( !a.is<symbol>() ) throw error("arguments must be symbols");
 	  }
 	  
 	  for(auto it = args->begin(), end = args->end(); it != end; ++it ) {
@@ -266,7 +261,7 @@ namespace lisp {
 		if( s == dot ) {
 		  // varargs
 		  if( it + 2 != end ) {
-			throw error("vararg must be the last in argument list");
+			throw error("vararg must be the last argument");
 		  }
 		  res->vararg = shared( (it + 1)->as<symbol>() );
 		  break;
@@ -279,7 +274,7 @@ namespace lisp {
 	}
 
 	// body
-	res->body = *(++arg);
+	res->body = *(arg + 1);
 
 	// environment
 	res->env = env;
@@ -321,29 +316,6 @@ namespace lisp {
   }
   
   
-  // struct quote {
-
-  // 	template<class T>
-  // 	value operator()(const T& self, environment) const {
-  // 	  return self;
-  // 	}
-
-  // 	value operator()(const list& self, environment env) const {
-
-  // 	  if(self->empty()) return self;
-
-  // 	  if( !(*self)[0].is<symbol>() ) return self;
-
-  // 	  if( (*self)[0].as<symbol>() != keyword.unquote ) return self;
-
-  // 	  if( self->size() != 2 ) {
-  // 		throw error("bad unquote syntax");
-  // 	  }
-
-  // 	  return eval(env, (*self)[1]);
-  // 	}
-
-  // };
   
   static value eval_quote(environment, list_iterator arg, list_iterator end) {
 	const unsigned argc = end - arg;
@@ -357,7 +329,6 @@ namespace lisp {
 
 
   static value eval_cond(environment env, list_iterator arg, list_iterator end) {
-	
 	for(auto it = arg; it != end; ++it) {
 	  
 	  if(!it->is<list>() || it->as<list>()->size() != 2) {
@@ -383,12 +354,11 @@ namespace lisp {
   
   
   static value eval_begin(environment env, list_iterator arg, list_iterator end) {
-	
 	value res = nil();
 	for(auto it = arg; it != end; ++it) {
 	  res = eval(env, *it);
 	}
-	
+
 	return res;
   }
 
@@ -400,7 +370,7 @@ namespace lisp {
 	if( argc != 3 ) throw error("bad defmacro syntax");
 
 	if( !arg->is<symbol>() ) throw error("symbol expected for macro name");
-
+	
 	macro[ arg->as<symbol>() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
 	
 	return nil();	
@@ -467,12 +437,13 @@ namespace lisp {
 	}
   
 	void operator()(const environment& env, std::ostream& out ) const {
-	  // out << "#<environment>";
-	  out << *env;
+	  out << "#<environment>";
+	  // out << *env;
 	}
 
   };
 
+  
   std::ostream& operator<<(std::ostream& out, const environment_type& env) {
 
 	std::function< int( const environment_type& )> fun = [&](const environment_type& env) -> int{
@@ -484,16 +455,15 @@ namespace lisp {
 	  }
 
 	  for(const auto& it : env) {
-
 		for(int i = 0; i < depth; ++i) {
 		  out << "  ";
 		}
-		out << it.first << ": " << std::flush<< it.second << std::endl;;
+		out << it.first << ": " <<  it.second << '\n';
 	  }
 	  
 	  return depth;
 	};
-
+	
 	fun(env);
 	return out;
   }
@@ -509,7 +479,5 @@ namespace lisp {
   lambda_type::lambda_type() { }
 
 
- 
-  
 }
 

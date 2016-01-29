@@ -19,9 +19,6 @@
      ;; (quasiquote (a b c)) => (list (quasiquote a) (quasiquote b) (quasiquote c))
      (cons 'list (map e (fn (x) (list 'quasiquote x)))))))
 
-(defmacro defn (name args . body)
-  `(def ,name (fn ,args ,(cons 'do body))))
-
 (defmacro if (test conseq alt)
   `(cond (,test ,conseq) (true ,alt)))
 
@@ -32,6 +29,9 @@
 (defmacro and (head . tail)
   (if (empty? head) head
       `(if ,head ,(cons 'and tail) false)))
+
+(defmacro defn (name args . body)
+  `(def ,name (fn ,args ,(cons 'do body))))
 
 
 (echo "lisp interpreter started")
