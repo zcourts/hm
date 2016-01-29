@@ -12,7 +12,7 @@ SOURCES = common.cpp sexpr.cpp ast.cpp type.cpp parse.cpp syntax.cpp hindley_mil
 LIBS += -lreadline -lboost_program_options -lstdc++
 
 CONFIG = debug
-DEFINES += LOG_LEVEL=2
+# DEFINES += LOG_LEVEL=2
 
 release {
 	# QMAKE_CXXFLAGS += -g
