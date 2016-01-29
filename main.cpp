@@ -451,7 +451,7 @@ struct hm_handler {
   
 
 namespace po = boost::program_options;
-po::variables_map parse_options(int argc, const char* argv[], std::vector<std::string>& remaining) {
+po::variables_map parse_options(int ac, const char* av[]) {
   
   po::options_description desc("options");
 
@@ -459,11 +459,16 @@ po::variables_map parse_options(int argc, const char* argv[], std::vector<std::s
     ("help,h", "produce help message")
     ("lisp", "lisp evaluation")
     ("hm", "hindley-milner type inference (default)")
+	("input", po::value<std::string>(), "filename")
 	;
-   
+
+  po::positional_options_description p;
+  p.add("input", -1);
+  
   po::variables_map vm;
-  po::parsed_options parsed =
-    po::command_line_parser(argc, argv).options(desc).allow_unregistered().run();
+  po::parsed_options parsed = po::command_line_parser(ac, av).
+	options(desc).positional(p).run();
+  
   po::store(parsed, vm);
   po::notify(vm);    
 
@@ -471,8 +476,6 @@ po::variables_map parse_options(int argc, const char* argv[], std::vector<std::s
 	std::cout << desc << "\n";
 	std::exit(1);
   }
-  
-  remaining = po::collect_unrecognized(parsed.options, po::include_positional);
   
   return vm;
 }
@@ -485,7 +488,7 @@ int main(int argc, const char* argv[] ) {
   std::cerr << std::boolalpha;  
 
   vec<std::string> remaining;
-  auto vm = parse_options(argc, argv, remaining);
+  auto vm = parse_options(argc, argv);
   
   sexpr_parser parser;
 
@@ -498,10 +501,10 @@ int main(int argc, const char* argv[] ) {
 	parser.handler = hm_handler{};
   }
 
-  if( !remaining.empty() ) {
-	std::ifstream file( remaining[0].c_str() );
+  if( vm.count("input") ) {
+	std::ifstream file( vm["input"].as<std::string>().c_str() );
 	if( !file ) throw std::runtime_error("file not found");
-
+	
 	parser( file );
 	
   } else {
