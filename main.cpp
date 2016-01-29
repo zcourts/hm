@@ -68,14 +68,30 @@ struct lisp_handler {
   lisp_handler() {
 	using namespace lisp;
 
-	(*env)[ "echo" ] = +[](environment, value* arg, value* last) -> value {
-	  for(value* it = arg; it != last; ++it) {
-		std::cout << *it << " ";
+	(*env)[ "echo" ] = +[](environment, value* arg, value* end) -> value {
+	  for(value* it = arg; it != end; ++it) {
+		std::cout << (it == arg ? "" : " ") << *it;
 	  }
 	  std::cout << std::endl;
 	  return nil();
 	};
 
+
+	(*env)[ "error" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  if( !argc ) throw error("argc == 0");
+	  
+	  std::stringstream ss;
+	  ss << std::boolalpha << *arg;
+	  
+	  for(value* it = arg + 1; it != end; ++it) {
+		ss << "\n   " << *it;
+	  }
+
+	  throw error( ss.str() );
+	};
+	
+	
 	(*env)[ "list?" ] = +[](environment, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  if( argc != 1) throw error("argc != 1");
@@ -281,7 +297,7 @@ struct lisp_handler {
 	  }
 	  
 	} catch( lisp::error& e) {
-	  std::cerr << "eval error: " << e.what() << std::endl;
+	  std::cerr << "evaluation error: " << e.what() << std::endl;
 	}
 	
   }
@@ -466,6 +482,7 @@ po::variables_map parse_options(int argc, const char* argv[], std::vector<std::s
 int main(int argc, const char* argv[] ) {
 
   std::cout << std::boolalpha;
+  std::cerr << std::boolalpha;  
 
   vec<std::string> remaining;
   auto vm = parse_options(argc, argv, remaining);

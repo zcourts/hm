@@ -184,10 +184,11 @@ static void get_vars(std::set<type::var>& out, const type::mono& t) {
  
 }
 
+
 // select the best representative for type t
 static type::mono represent(union_find<type::mono>& types,
 							const type::mono& t) {
-  // debug_rule _("represent", t);
+  // debug_raii _("represent", t);
   
   type::mono res = types.find(t);
 
@@ -253,19 +254,19 @@ type::poly generalize(const context& ctx, const type::mono& t) {
 }
 
 
-struct debug_rule {
+struct debug_raii {
   const char* const id;
 
   static constexpr int log_level = 2;
   
   template<class... Args>
-  debug_rule(const char* id, Args&&... args) :id(id) {
+  debug_raii(const char* id, Args&&... args) :id(id) {
 	auto& out = debug<log_level>(1) << '(' << id;
 	int unpack[] = {(out << " " << args, 0)...}; (void) unpack;
 	out << std::endl;
   }
 
-  ~debug_rule() {
+  ~debug_raii() {
 	debug<log_level>(-1) << "   " << id << ')' << std::endl;
   }
 };
@@ -278,7 +279,7 @@ struct algorithm_w {
   
   // var
   type::mono operator()(const ast::var& v, context& c) const {
-	debug_rule _("var", v);
+	debug_raii _("var", v);
 	
 	auto it = c.find(v);
 
@@ -295,7 +296,7 @@ struct algorithm_w {
 
   // app
   type::mono operator()(const ast::app& self, context& c) const {
-	debug_rule _("app");
+	debug_raii _("app");
 	
 	// infer type for function 
 	type::mono func = self.func->apply<type::mono>(*this, c);
@@ -332,6 +333,8 @@ struct algorithm_w {
 	const unsigned argc = last - first;
 
 	// enriched context with argument type
+
+	// TODO this is horribly inefficient
 	context sub = c;
 	
 	type::mono from, to;
@@ -363,18 +366,19 @@ struct algorithm_w {
   
   // abs
   type::mono operator()(const ast::abs& self, context& c) const {
-	debug_rule _("abs");
+	debug_raii _("abs");
 	return abs(self.args.begin(), self.args.end(), self.body, c);
   }
 
   // let
   type::mono operator()(const ast::let& let, context& c) const {
-	debug_rule _("let", let.id);
+	debug_raii _("let", let.id);
 	
 	// infer type for definition
 	type::mono def = let.value->apply<type::mono>(*this, c);
 
 	// enriched context with local definition
+	// TODO this is horribly inefficient
 	context sub = c;
 	
 	// generalize as much as possible given current context
@@ -391,7 +395,7 @@ struct algorithm_w {
   // litterals: constant types
   template<class T>
   type::mono operator()(const ast::lit<T>& , context& ) const {
-	debug_rule _("lit");
+	debug_raii _("lit");
 	return type::traits<T>::type();
   }
   

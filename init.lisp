@@ -34,4 +34,7 @@
   `(def ,name (fn ,args ,(cons 'do body))))
 
 
+(defmacro assert (test)
+  `(cond ((not ,test) (error '("assertion failed:" ,test)))))
+
 (echo "lisp interpreter started")

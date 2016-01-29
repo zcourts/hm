@@ -135,7 +135,6 @@ namespace lisp {
 		  if( it != macro.end() ) {
 
 			// expand macro
-
 			value& arg = self->begin()[1];
 			const value exp = apply(env, it->second, &arg, &arg + self->size() - 1);
 
