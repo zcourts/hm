@@ -1,6 +1,7 @@
 
-
+;; 
 (def not (fn (x) (cond (x false) (true true))))
+(def empty? (fn (x) (= 0 (length x))))
 
 ;; the mother of all macros TODO unquote-splicing ?
 (defmacro quasiquote (e)
@@ -8,7 +9,7 @@
     ;; not a list: just quote
     ((not (list? e)) (list 'quote e))
     ;; empty list: as is
-    ((= (length e) 0) e)
+    ((empty? e) e)
 
     ;; unquote
     ((eq? (nth e 0) 'unquote)
@@ -20,6 +21,17 @@
 
 (defmacro defn (name args . body)
   `(def ,name (fn ,args ,(cons 'do body))))
+
+(defmacro if (test conseq alt)
+  `(cond (,test ,conseq) (true ,alt)))
+
+(defmacro or (head . tail)
+  (if (empty? head) head
+      `(if ,head true ,(cons 'or tail))))
+
+(defmacro and (head . tail)
+  (if (empty? head) head
+      `(if ,head ,(cons 'and tail) false)))
 
 
 (echo "lisp interpreter started")
