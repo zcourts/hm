@@ -106,14 +106,6 @@ namespace lisp {
   };
 
 
-  template<class Iterator>
-  static value expand(lambda self, Iterator arg, Iterator end) {
-	const environment sub = self->env->augment(self->args.begin(), self->args.end(), arg, end);
-	return eval(sub, self->body);
-  }
-  
-  
-
   struct evaluate {
 
 	// lists
@@ -144,12 +136,11 @@ namespace lisp {
 
 			// expand macro
 
-			value& arg = *(self->begin() + 1);
+			value& arg = self->begin()[1];
 			const value exp = apply(env, it->second, &arg, &arg + self->size() - 1);
-			// const value exp = expand(it->second, );
 
-			debug<2>() << "macro:\t" << value(self) << std::endl
-					   << "\t>>\t" << exp << std::endl;
+			// debug<2>() << "macro:\t" << value(self) << std::endl
+			// 		   << "\t>>\t" << exp << std::endl;
 			
 			// evaluate result
 			return eval(env, exp); 
@@ -225,7 +216,7 @@ namespace lisp {
 	}
 
 	// TODO eval first ?
-	value expr = eval(env, *(arg + 1));
+	value expr = eval(env, arg[1]);
 	(*env)[ arg->as<symbol>() ] = expr;
 	
 	return nil{};
@@ -263,7 +254,7 @@ namespace lisp {
 		  if( it + 2 != end ) {
 			throw error("vararg must be the last argument");
 		  }
-		  res->vararg = shared( (it + 1)->as<symbol>() );
+		  res->vararg = shared( it[1].as<symbol>() );
 		  break;
 			
 		} else {
@@ -274,8 +265,8 @@ namespace lisp {
 	}
 
 	// body
-	res->body = *(arg + 1);
-
+	res->body = arg[1];
+	
 	// environment
 	res->env = env;
 
@@ -391,7 +382,7 @@ namespace lisp {
 		throw error("unknown variable " + std::string(s.name()));
 	  });
 
-	var = eval(env, *(arg + 1));
+	var = eval(env, arg[1]);
 	return nil();
   }
 
