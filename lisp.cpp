@@ -49,7 +49,7 @@ namespace lisp {
   };
 
 
-  static std::map<symbol, lambda> macro;
+  static std::map<const char*, lambda> macro;
 
   
   // first expr in self has been evaluated, passed as the first
@@ -370,7 +370,7 @@ namespace lisp {
 
 	if( !arg->is<symbol>() ) throw error("symbol expected for macro name");
 
-	macro[ arg->as<symbol>() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
+	macro[ arg->as<symbol>().name() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
 	
 	return nil();	
   };
@@ -398,7 +398,7 @@ namespace lisp {
 
   struct stream {
 	
-	void operator()(const nil& self, std::ostream& out) const {
+	void operator()(const nil& , std::ostream& out) const {
 	  out << "nil";
 	}
 

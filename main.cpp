@@ -341,7 +341,6 @@ po::variables_map parse_options(int argc, const char* argv[], std::vector<std::s
   
   po::options_description desc("options");
 
-  int x;
   desc.add_options()
     ("help,h", "produce help message")
     ("lisp", "lisp evaluation")
@@ -364,8 +363,10 @@ po::variables_map parse_options(int argc, const char* argv[], std::vector<std::s
   return vm;
 }
 
+
+
 int main(int argc, const char* argv[] ) {
-  
+
   std::cout << std::boolalpha;
 
   vec<std::string> remaining;

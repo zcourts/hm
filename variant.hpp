@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <cassert>
 
-
 template<class ... Types> class variant;
 
 // some helpers
