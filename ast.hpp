@@ -13,28 +13,27 @@ namespace ast {
   struct abs;					// lambda-abstractions
   struct app;					// applications
   struct let;					// local defintions
+  struct expr;					// expression
 
-  // TODO lists
-  using expr = variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
-						var, abs, app, let >;
   
   template<class T>
   struct lit {
 	T value;
   };
 
+  template<> struct lit<void> { };
+  
   struct var : symbol {
 	using symbol::symbol;
   };
 
-  template<> struct lit<void> { };
 
   struct abs {
 	vec<var> args;
 	ref<expr> body;
   };
 
-  // TODO vec for args
+
   struct app {
 	ref<expr> func;
 	vec<expr> args;
@@ -45,8 +44,16 @@ namespace ast {
 	ref<expr> value;
 	ref<expr> body;
   };
-
-
+  
+  
+  // TODO lists
+  struct expr : variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
+						 var, abs, app, let > {
+	using variant::variant;
+  };
+  
+  
+  
   // variable definitions
   struct def {
 	var id;

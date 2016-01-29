@@ -11,34 +11,35 @@ namespace lisp {
   // this will be useful
   static error unimplemented("unimplemented");
 
+  // iterators
+  typedef vec<value>::iterator list_iterator;
   
   // special forms
-  static value eval_define(environment env, list_type::iterator arg, list_type::iterator end);
-  static value eval_lambda(environment env, list_type::iterator arg, list_type::iterator end);
-  static value eval_quote(environment env, list_type::iterator arg, list_type::iterator end);
-  static value eval_cond(environment env, list_type::iterator arg, list_type::iterator end);
-  static value eval_begin(environment env, list_type::iterator arg, list_type::iterator end);
-  static value eval_set(environment env, list_type::iterator arg, list_type::iterator end);
-  static value eval_defmacro(environment env, list_type::iterator arg, list_type::iterator end);
+  using special_form = value (*) (environment env, list_iterator arg, list_iterator end);
   
-  // prototype
-  using special_form = value (*) (environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_define(environment env, list_iterator arg, list_iterator end);
+  static value eval_lambda(environment env, list_iterator arg, list_iterator end);
+  static value eval_quote(environment env, list_iterator arg, list_iterator end);
+  static value eval_cond(environment env, list_iterator arg, list_iterator end);
+  static value eval_begin(environment env, list_iterator arg, list_iterator end);
+  static value eval_set(environment env, list_iterator arg, list_iterator end);
+  static value eval_defmacro(environment env, list_iterator arg, list_iterator end);
   
+
   // TODO import ?
 
   static struct {
-	std::string define = "def";
-	std::string lambda = "fn";
-	std::string quote = "quote";
-	std::string begin = "do";
-	std::string cond = "cond";
-	std::string set = "set!";
-	std::string defmacro = "defmacro";
-	
+	symbol define = "def";
+	symbol lambda = "fn";
+	symbol quote = "quote";
+	symbol begin = "do";
+	symbol cond = "cond";
+	symbol set = "set!";
+	symbol defmacro = "defmacro";
   } keyword;
 
   
-  static std::map<std::string, special_form> special = {
+  static std::map<symbol, special_form> special = {
 	{keyword.define, eval_define},
 	{keyword.lambda, eval_lambda},
 	{keyword.quote, eval_quote},   	
@@ -49,7 +50,8 @@ namespace lisp {
   };
 
 
-  static std::map<const char*, lambda> macro;
+  // macro table
+  static std::map<symbol, lambda> macro;
 
   
   // first expr in self has been evaluated, passed as the first
@@ -146,7 +148,7 @@ namespace lisp {
 		
 		// try special forms
 		{
-		  auto it = special.find( s.name() );
+		  auto it = special.find( s );
 		  if( it != special.end() ) {
 			return it->second(env, self->begin() + 1, self->end());
 		  }
@@ -154,7 +156,7 @@ namespace lisp {
 
 		// try macros
 		{
-		  auto it = macro.find( s.name() );
+		  auto it = macro.find( s );
 		  if( it != macro.end() ) {
 
 			// build macro application 
@@ -208,7 +210,7 @@ namespace lisp {
 
 
   // special forms
-  static value eval_define(environment env, list_type::iterator arg, list_type::iterator end) {
+  static value eval_define(environment env, list_iterator arg, list_iterator end) {
 
 	const unsigned argc = end - arg;
 	
@@ -227,7 +229,7 @@ namespace lisp {
   }
 
   
-  static value eval_lambda(environment env, list_type::iterator arg, list_type::iterator end) {
+  static value eval_lambda(environment env, list_iterator arg, list_iterator end) {
 	const unsigned argc = end - arg;
 	
 	if( argc != 2 ) {
@@ -274,7 +276,7 @@ namespace lisp {
 	}
 
 	value operator()(const sexpr::list& self) const {
-	  list res = shared<list_type>();
+	  list res = shared< vec<value> >();
 	  res->reserve( self.size() );
 	  
 	  std::transform(self.begin(), self.end(),
@@ -317,7 +319,7 @@ namespace lisp {
   // };
 
   
-  static value eval_quote(environment, list_type::iterator arg, list_type::iterator end) {
+  static value eval_quote(environment, list_iterator arg, list_iterator end) {
 	const unsigned argc = end - arg;
 	if(argc != 1) {
 	  throw error("bad quote syntax");
@@ -327,7 +329,7 @@ namespace lisp {
   }
 
 
-  static value eval_cond(environment env, list_type::iterator arg, list_type::iterator end) {
+  static value eval_cond(environment env, list_iterator arg, list_iterator end) {
 	
 	for(auto it = arg; it != end; ++it) {
 	  
@@ -335,7 +337,7 @@ namespace lisp {
 		throw error("condition should be a pair");
 	  }
 
-	  const list_type& cond = *it->as<list>();
+	  const vec<value>& cond = *it->as<list>();
 	  
 	  // TODO handle else during canonicalize
 	  const value res = eval(env, cond[0]);
@@ -351,7 +353,7 @@ namespace lisp {
 
   
   
-  static value eval_begin(environment env, list_type::iterator arg, list_type::iterator end) {
+  static value eval_begin(environment env, list_iterator arg, list_iterator end) {
 	
 	value res = nil();
 	for(auto it = arg; it != end; ++it) {
@@ -363,21 +365,21 @@ namespace lisp {
 
   
 
-  static value eval_defmacro(environment env, list_type::iterator arg, list_type::iterator end) {
+  static value eval_defmacro(environment env, list_iterator arg, list_iterator end) {
 	const unsigned argc = end - arg;
 	
 	if( argc != 3 ) throw error("bad defmacro syntax");
 
 	if( !arg->is<symbol>() ) throw error("symbol expected for macro name");
 
-	macro[ arg->as<symbol>().name() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
+	macro[ arg->as<symbol>() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
 	
 	return nil();	
   };
 
   
   
-  static value eval_set(environment env, list_type::iterator arg, list_type::iterator end) {
+  static value eval_set(environment env, list_iterator arg, list_iterator end) {
 	const unsigned argc = end - arg;
 
 	if( argc != 2 ) throw error("bad set! syntax");

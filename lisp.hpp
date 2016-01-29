@@ -8,32 +8,25 @@
 
 namespace lisp {
 
+  // values
+  struct value;
+
+  struct nil { };  
+  using boolean = sexpr::boolean;
+  using integer = sexpr::integer;
   using real = sexpr::real;
-  using string = ref<sexpr::string>;
-
   
-  struct list_type;
-  using list = ref<list_type>;
-
+  // wrap these to avoid too large value sizes
+  // TODO boost::intrusive_ptr instead of ref<> and make it 2 words  
+  using string = ref<sexpr::string>;
+  using list = ref< vec<value> >;
   
   struct lambda_type;
   using lambda = ref<lambda_type>;
-
   
   class environment_type;
   using environment = ref<environment_type>;
 
-  
-  struct builtin;
-
-  
-  struct nil { };
-
-  
-  // TODO boost::intrusive_ptr instead of ref<> and make it 2 words
-  using value = variant<nil, bool, int, real, symbol, string, list, lambda, environment, builtin>;
-
-  
   struct builtin {
 	using type = value (*)(environment env, value* first, value* last);
 	type ptr;
@@ -41,8 +34,13 @@ namespace lisp {
 	builtin(type ptr = nullptr) : ptr(ptr) { }
   };
 
-  
-  // make sure we don't accidentally get too large value type
+  struct value : variant<nil, boolean, integer, real, symbol, string, list, lambda, environment, builtin> {
+	using variant::variant;
+
+	friend std::ostream& operator<<(std::ostream& out, const value& );
+  };
+
+  // make sure we don't accidentally form too large value type
   static_assert( sizeof(value) <= 3 * sizeof( void* ), "too big yo");
 
   struct error : std::runtime_error {
@@ -50,8 +48,6 @@ namespace lisp {
   };
 
   
-  std::ostream& operator<<(std::ostream& out, const value& );
-
   
   class environment_type : public std::enable_shared_from_this<environment_type>,
 						   protected std::map<symbol, value> {
@@ -111,11 +107,6 @@ namespace lisp {
 	vec<symbol> args;
 	value body;
   };
-
-  struct list_type : vec<value> {
-	using vec<value>::vec;
-  };
-
 
   // build a value from a pure symbolic expression
   value convert(const sexpr::expr& expr);

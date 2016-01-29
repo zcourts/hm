@@ -28,7 +28,7 @@ struct contains {
   };
 
 
-  bool operator()(const type::lit& self, const type::var& var) const {
+  bool operator()(const type::lit& , const type::var& ) const {
 	return false;
   };
 
@@ -261,7 +261,7 @@ struct debug_rule {
   template<class... Args>
   debug_rule(const char* id, Args&&... args) :id(id) {
 	auto& out = debug<log_level>(1) << '(' << id;
-	int unpack[] = {(out << " " << args, 0)...};
+	int unpack[] = {(out << " " << args, 0)...}; (void) unpack;
 	out << std::endl;
   }
 

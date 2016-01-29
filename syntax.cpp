@@ -56,7 +56,7 @@ struct match_expr {
   
   
   template<class T>
-  ast::expr operator()(const T& self) const {
+  ast::expr operator()(const T& ) const {
 	throw std::logic_error("type not implemented: " + std::string( typeid(T).name()) );
   }
   
@@ -199,7 +199,7 @@ static ast::var transform_var(const sexpr::expr& e) {
 struct transform_constructor {
 
   ast::data::constructor operator()(const symbol& self) const {
-	return  { self.name() };
+	return  { self.name(), {} };
   }
 
   ast::data::constructor operator()(const sexpr::list& self) const {
@@ -222,7 +222,7 @@ struct transform_constructor {
   }
 
   template<class T>
-  ast::data::constructor operator()(const T& self) const {
+  ast::data::constructor operator()(const T& ) const {
 	throw syntax_error("type constructor syntax");
   }
   

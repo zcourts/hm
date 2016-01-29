@@ -11,18 +11,21 @@
 // parse tree
 namespace sexpr {
 
+  struct expr;
+
+  using boolean = bool;
   using integer = int;
   using string = std::string;
   using real = double;
-  struct expr;
-
   using list = vec<expr>;
   
   struct expr : variant<bool, integer, real, string, symbol, list > {
 	using variant::variant;
+
+	friend std::ostream& operator<<(std::ostream& out, const expr& e);
+
   };
 
-  std::ostream& operator<<(std::ostream& out, const expr& e);
 }
 
 

@@ -13,7 +13,7 @@ namespace impl {
   struct sink_stream {
   
 	template<class T>
-	inline const sink_stream& operator<<(T&& other) const { return *this; }
+	inline const sink_stream& operator<<(T&& ) const { return *this; }
 	inline const sink_stream& operator<<( std::ostream& (*)(std::ostream&) ) const { return *this; }
   };
 
