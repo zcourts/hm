@@ -426,7 +426,7 @@ namespace lisp {
 	 out << "#<builtin>";
 	}
   
-	void operator()(const environment& env, std::ostream& out ) const {
+	void operator()(const environment& , std::ostream& out ) const {
 	  out << "#<environment>";
 	  // out << *env;
 	}

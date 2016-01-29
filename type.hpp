@@ -61,17 +61,16 @@ namespace type {
   std::ostream& operator<<(std::ostream& out, const mono& p);  
   
   // TODO other type constructors, add func
+
+  // type schemes
+  struct scheme {
+	vec<var> args;
+	mono body;
+  };
   
   // polytypes
-  struct forall;
+  using poly = variant< mono, scheme >;
   
-  using poly = variant< mono, forall >;
-
-  struct forall {
-	vec<var> args;
-	ref<poly> body;
-  };
-
   std::ostream& operator<<(std::ostream& out, const poly& p);
 
   // TODO not quite sure where this belongs

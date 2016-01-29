@@ -153,7 +153,7 @@ struct instantiate {
 
   
   // quantified
-  type::mono operator()(const type::forall& self, substitution&& s = {}) const {
+  type::mono operator()(const type::scheme& self, substitution&& s = {}) const {
 
 	// add substitutions
 	for(const auto& v : self.args) {
@@ -162,7 +162,7 @@ struct instantiate {
 	};
 
 	// instantiate body given new substitutions
-	return self.body->apply<type::mono>(*this, std::move(s));
+	return self.body.apply<type::mono>(*this, std::move(s));
   }
   
 };
@@ -177,8 +177,8 @@ static void get_vars(std::set<type::var>& out, const type::mono& t) {
 	out.insert( t.as<var>() );
   } else if( t.is<app>() ) {
 
-	for(const auto& t : t.as<app>()->args) {
-	  get_vars(out, t);
+	for(const auto& ti : t.as<app>()->args) {
+	  get_vars(out, ti);
 	}	  
   }
  
@@ -224,8 +224,8 @@ type::poly generalize(const context& ctx, const type::mono& t) {
   // all bound type variables in context
   for(const auto& x : ctx) {
 
-	if( x.second.is<forall>() ) {
-	  for(const auto& v : x.second.as< forall >().args ) {
+	if( x.second.is<scheme>() ) {
+	  for(const auto& v : x.second.as< scheme >().args ) {
 		bound.insert( v );
 	  }
 	};
@@ -241,13 +241,13 @@ type::poly generalize(const context& ctx, const type::mono& t) {
 	// no quantified variables
 	return t;
   } else {
-	forall res;
+	scheme res;
 	
 	std::copy(diff.begin(), diff.end(), std::back_inserter(res.args));
 
 	// TODO does this work ?
 	// watch out: we want deep copy with class representatives
-	res.body = shared<poly>(t);
+	res.body = t;
 
 	return res;
   }

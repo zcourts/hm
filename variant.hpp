@@ -210,12 +210,14 @@ class variant {
   // unsafe casts
   template<class T>
   inline T& unsafe() {
-	return *reinterpret_cast<T*>(data);
+	auto ptr = reinterpret_cast<T*>(data);
+	return *ptr;
   }
 
   template<class T>
   inline const T& unsafe() const {
-	return *reinterpret_cast<const T*>(data);
+	auto ptr = reinterpret_cast<const T*>(data);
+	return *ptr;
   }
 
   template<class T>

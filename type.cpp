@@ -40,14 +40,14 @@ namespace type {
 	bool parentheses;
 	
 	// quantified
-	void operator()(const forall& self, std::ostream& out) const {
+	void operator()(const scheme& self, std::ostream& out) const {
 
 	  // add stuff to context
 	  for(unsigned i = 0, n = self.args.size(); i < n; ++i) {
 		context[self.args[i]] = context.size();
 	  }
 
-	  self.body->apply(*this, out);
+	  self.body.apply(*this, out);
 	}
 
 	void operator()(const mono& self, std::ostream& out) const {
