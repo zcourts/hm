@@ -13,16 +13,16 @@ namespace lisp {
 
   
   // special forms
-  static value eval_define(environment env, const sexpr::list& list);
-  static value eval_lambda(environment env, const sexpr::list& list);
-  static value eval_quote(environment env, const sexpr::list& list);
-  static value eval_cond(environment env, const sexpr::list& list);
-  static value eval_begin(environment env, const sexpr::list& list);
-  static value eval_set(environment env, const sexpr::list& list);
-  static value eval_defmacro(environment env, const sexpr::list& list);
+  static value eval_define(environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_lambda(environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_quote(environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_cond(environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_begin(environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_set(environment env, list_type::iterator arg, list_type::iterator end);
+  static value eval_defmacro(environment env, list_type::iterator arg, list_type::iterator end);
   
   // prototype
-  using special_form = value (*) (environment env, const sexpr::list& list);
+  using special_form = value (*) (environment env, list_type::iterator arg, list_type::iterator end);
   
   // TODO import ?
 
@@ -78,7 +78,8 @@ namespace lisp {
 		}
 		
 		// augment environment from args 
-		sub = env->augment(self->args.begin(), self->args.end(), args.begin(), args.end() );
+		sub = env->augment(self->args.begin(), self->args.end(),
+						   args.begin(), args.end() );
 	  }
 	  
 	  return eval(sub, self->body);
@@ -131,20 +132,24 @@ namespace lisp {
   struct evaluate {
 
 	// lists
-	inline value operator()(const sexpr::list& self, environment env) const {
+	inline value operator()(const list& self, environment env) const {
 	  
-	  if( self.empty() ) {
+	  if( self->empty() ) {
 		throw error("empty list in application");
 	  }
 
-	  if( self[0].is<symbol>() ) {
+	  const auto& head = self->front();
+	  
+	  if( head.is<symbol>() ) {
 
-		const auto& s = self[0].as<symbol>();
+		const auto& s = head.as<symbol>();
 		
 		// try special forms
 		{
 		  auto it = special.find( s.name() );
-		  if( it != special.end() ) return it->second(env, self);
+		  if( it != special.end() ) {
+			return it->second(env, self->begin() + 1, self->end());
+		  }
 		}
 
 		// try macros
@@ -153,7 +158,7 @@ namespace lisp {
 		  if( it != macro.end() ) {
 
 			// build macro application 
-			sexpr::list expr = self;
+			// sexpr::list expr = self;
 			// expr[0] = it->second;
 
 			// evaluate macro
@@ -168,24 +173,13 @@ namespace lisp {
 	  
 
 	  // regular function application
-	  value func = eval(env, self[0]);
-	  return func.apply<value>( apply(), env, self.begin() + 1, self.end() );
+	  const value func = eval(env, head);
+	  return func.apply<value>( apply(), env, self->begin() + 1, self->end() );
 	}
 
 	
-	// wrap strings
-	value operator()(const sexpr::string& self, environment ) const {
-	  return shared(self);
-	}
-
 	// variables
 	inline value operator()(const symbol& self, environment env) const {
-
-	  // TODO check this during canonicalize
-	  // {
-	  // 	auto it = special.find( self );
-	  // 	if( it != special.end() ) throw error("reserved keyword");
-	  // }
 
 	  return env->find( self, [self] {
 		  throw error("unknown variable: " + std::string(self.name()) );
@@ -203,7 +197,7 @@ namespace lisp {
   };
   
 
-  value eval(environment env, const sexpr::expr& expr) {
+  value eval(environment env, const value& expr) {
 	try { 
 	  return expr.apply<value>(evaluate(), env);
 	} catch( error& e ) {
@@ -213,46 +207,42 @@ namespace lisp {
   }
 
 
-  static bool check_special(const sexpr::list& list, const std::string& name) {
-	return !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == name;
-  }
-
-  
   // special forms
-  static value eval_define(environment env, const sexpr::list& list) {
-	assert( check_special(list, keyword.define) );
+  static value eval_define(environment env, list_type::iterator arg, list_type::iterator end) {
 
-	if( list.size() != 3 ) {
+	const unsigned argc = end - arg;
+	
+	if( argc != 2 ) {
 	  throw error("bad define syntax");
 	}
 
-	if( !list[1].is<symbol>() ) {
+	if( !arg->is<symbol>() ) {
 	  throw error("symbol expected for variable name");
 	}
 
 	// TODO eval first ?
-	(*env)[ list[1].as<symbol>() ] = eval(env, list[2]);
+	(*env)[ arg->as<symbol>() ] = eval(env, *(arg + 1));
 	
 	return nil{};
   }
 
   
-  static value eval_lambda(environment env, const sexpr::list& list) {
-	assert( check_special(list, keyword.lambda));
+  static value eval_lambda(environment env, list_type::iterator arg, list_type::iterator end) {
+	const unsigned argc = end - arg;
 	
-	if( list.size() != 3 ) {
+	if( argc != 2 ) {
 	  throw error("bad lambda syntax");
 	}
 
 	// TODO varargs
-	if( !list[1].is<sexpr::list>() ) {
+	if( !arg->is<list>() ) {
 	  throw error("expected variable list for lambda");
 	}
 
 	lambda res = shared<lambda_type>();
 
 	// args
-	for(const auto& s : list[1].as<sexpr::list>() ) {
+	for(const auto& s : *arg->as<list>() ) {
 	  if( !s.is<symbol>() ) {
 		throw error("variable names must be symbols");
 	  } else {
@@ -261,7 +251,7 @@ namespace lisp {
 	}
 
 	// body
-	res->body = list[2];
+	res->body = *(arg + 1);
 
 	// environment
 	res->env = env;
@@ -271,14 +261,14 @@ namespace lisp {
 
 
 
-  struct quote {
+  // convert a sexpr::expr into a value
+  struct to_value {
 
 	template<class T>
 	value operator()(const T& self) const {
 	  return self;
 	}
 
-	// wrapped
 	value operator()(const std::string& self) const {
 	  return shared(self);
 	}
@@ -289,7 +279,7 @@ namespace lisp {
 	  
 	  std::transform(self.begin(), self.end(),
 					 std::back_inserter(*res), [&](const sexpr::expr& e) {
-					   return e.apply<value>( quote() );
+					   return e.apply<value>( *this );
 					 });
 	  
 	  return res;
@@ -297,29 +287,56 @@ namespace lisp {
 	
   };
 
-  
-  static value eval_quote(environment , const sexpr::list& list) {
-	assert( check_special(list, keyword.quote));
 
-	if(list.size() != 2) {
+  value convert(const sexpr::expr& expr) {
+	return expr.apply<value>(to_value());
+  }
+  
+  // struct to_sexpr {
+
+  // 	template<class T>
+  // 	value operator()(const T& self) const {
+  // 	  throw error("can't convert to s-expr");
+  // 	}
+
+  // 	sexpr::expr operator()(const string& self) const {
+  // 	  return *self;
+  // 	}
+	
+  // 	sexpr::expr operator()(const list& self) const {
+  // 	  sexpr::list res;
+  // 	  res.reserve( self->size() );
+	  
+  // 	  std::transform(self->begin(), self->end(),
+  // 					 std::back_inserter(*res), [&](const value& v) {
+  // 					   return e.apply<sexpr::expr>( *this );
+  // 					 });
+  // 	  return res;
+  // 	}
+	
+  // };
+
+  
+  static value eval_quote(environment, list_type::iterator arg, list_type::iterator end) {
+	const unsigned argc = end - arg;
+	if(argc != 1) {
 	  throw error("bad quote syntax");
 	}
 
-	return list[1].apply<value>(quote());
+	return arg->apply<value>(to_value());
   }
 
 
-  static value eval_cond(environment env, const sexpr::list& list) {
-	assert( check_special(list, keyword.cond));
-
-	for(unsigned i = 1, n = list.size(); i < n; ++i) {
+  static value eval_cond(environment env, list_type::iterator arg, list_type::iterator end) {
+	
+	for(auto it = arg; it != end; ++it) {
 	  
-	  if(!list[i].is<sexpr::list>() || list[i].as<sexpr::list>().size() != 2) {
+	  if(!it->is<list>() || it->as<list>()->size() != 2) {
 		throw error("condition should be a pair");
 	  }
 
-	  auto& cond = list[i].as<sexpr::list>();
-
+	  const list_type& cond = *it->as<list>();
+	  
 	  // TODO handle else during canonicalize
 	  const value res = eval(env, cond[0]);
 	  
@@ -333,48 +350,47 @@ namespace lisp {
   }
 
   
-  static value eval_begin(environment env, const sexpr::list& list) {
-	assert( check_special(list, keyword.begin));
-
+  
+  static value eval_begin(environment env, list_type::iterator arg, list_type::iterator end) {
+	
 	value res = nil();
-	for(unsigned i = 1, n = list.size(); i < n; ++i) {
-
-	  res = eval(env, list[i]);
+	for(auto it = arg; it != end; ++it) {
+	  res = eval(env, *it);
 	}
-
+	
 	return res;
   }
 
+  
 
-  static value eval_defmacro(environment env, const sexpr::list& list) {
-	assert( check_special(list, keyword.defmacro));
+  static value eval_defmacro(environment env, list_type::iterator arg, list_type::iterator end) {
+	const unsigned argc = end - arg;
 	
-	if( list.size() != 4 ) throw error("bad defmacro syntax");
+	if( argc != 3 ) throw error("bad defmacro syntax");
 
-	if( !list[1].is<symbol>() ) throw error("symbol expected for macro name");
+	if( !arg->is<symbol>() ) throw error("symbol expected for macro name");
 
-	sexpr::list expr = {{ symbol( keyword.lambda ), list[2], list[3] }};
+	macro[ arg->as<symbol>() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
 	
-	macro[ list[1].as<symbol>() ] = eval_lambda( env, expr ).as<lambda>();
-
 	return nil();	
   };
+
   
   
-  static value eval_set(environment env, const sexpr::list& list) {
-	assert( check_special(list, keyword.set));
+  static value eval_set(environment env, list_type::iterator arg, list_type::iterator end) {
+	const unsigned argc = end - arg;
 
-	if( list.size() != 3 ) throw error("bad set! syntax");
+	if( argc != 2 ) throw error("bad set! syntax");
 
-	if( !list[1].is<symbol>() ) throw error("variable name expected");
+	if( !arg->is<symbol>() ) throw error("variable name expected");
 
-	const auto& s = list[1].as<symbol>();
+	const auto& s = arg->as<symbol>();
 	
 	auto& var = env->find(s, [s] {
 		throw error("unknown variable " + std::string(s.name()));
 	  });
 
-	var = eval(env, list[2]);
+	var = eval(env, *(arg + 1));
 	return nil();
   }
 

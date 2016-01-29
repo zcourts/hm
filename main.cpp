@@ -80,6 +80,19 @@ struct lisp_handler {
 
 		  return res;
 		});
+
+	(*env)[ "*" ] = builtin( [](environment, value* first, value* last) -> value {
+		  const unsigned argc = last - first;
+		  if(!argc) throw error("1+ args expected");
+		
+		  real res = 1;
+
+		  for(value* arg = first; arg != last; ++arg) {
+			res *= arg->apply<real>( number() );
+		  }
+
+		  return res;
+		});
 	
 	(*env)[ "=" ] = builtin( [](environment, value* first, value* last) -> value {
 		const unsigned argc = last - first;
@@ -162,7 +175,7 @@ struct lisp_handler {
 	  
 	  for(const sexpr::expr& s : prog) {
 		// std::cout << s << std::endl;
-		const lisp::value res = lisp::eval(env, s);
+		const lisp::value res = lisp::eval(env, lisp::convert(s) );
 
 		if(!res.is<lisp::nil>()) {
 		  std::cout << res << std::endl;

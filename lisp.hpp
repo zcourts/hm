@@ -109,7 +109,7 @@ namespace lisp {
    
 	environment env;
 	vec<symbol> args;
-	sexpr::expr body;
+	value body;
   };
 
   struct list_type : vec<value> {
@@ -117,10 +117,11 @@ namespace lisp {
   };
 
 
+  // build a value from a pure symbolic expression
+  value convert(const sexpr::expr& expr);
   
-  // evaluates a sexpr in canonical form
-  value eval(environment env, const sexpr::expr& expr);
-
+  // evaluate expression
+  value eval(environment env, const value& expr);
   
 
 }
