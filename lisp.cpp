@@ -2,6 +2,9 @@
 #include "vla.hpp"
 
 #include <algorithm>
+#include <sstream>
+
+#include "debug.hpp"
 
 // debug
 #include <iostream>
@@ -11,10 +14,8 @@ namespace lisp {
   // this will be useful
   static error unimplemented("unimplemented");
 
-  // iterators
-  typedef vec<value>::iterator list_iterator;
-  
   // special forms
+  typedef vec<value>::iterator list_iterator;
   using special_form = value (*) (environment env, list_iterator arg, list_iterator end);
   
   static value eval_define(environment env, list_iterator arg, list_iterator end);
@@ -25,7 +26,6 @@ namespace lisp {
   static value eval_set(environment env, list_iterator arg, list_iterator end);
   static value eval_defmacro(environment env, list_iterator arg, list_iterator end);
   
-
   // TODO import ?
 
   static struct {
@@ -36,6 +36,9 @@ namespace lisp {
 	symbol cond = "cond";
 	symbol set = "set!";
 	symbol defmacro = "defmacro";
+
+	// symbol unquote = "unquote";	
+	// symbol quasiquote = "quasiquote";
   } keyword;
 
   
@@ -54,79 +57,59 @@ namespace lisp {
   static std::map<symbol, lambda> macro;
 
   
-  // first expr in self has been evaluated, passed as the first
-  // parameter with correct type
-  struct apply {
+  struct application {
 	
 	// lambda application
 	template<class Iterator>
-	value operator()(const lambda& self, environment env, Iterator arg, Iterator end) const {
+	inline value operator()(const lambda& self, environment, Iterator arg, Iterator end) const {
 	  const unsigned argc = end - arg;
 
-	  // TODO varargs
-	  if(self->args.size() != argc) {
+	  // TODO expected/got
+	  if(self->vararg && argc < self->args.size() ) {
 		throw error("bad argument count");
 	  }
 	  
-	  environment sub;
+	  if(!self->vararg && argc != self->args.size() ) {
+		throw error("bad argument count");
+	  }
 
-	  {
-		// vla for args 
-		macro_vla(value, args, argc);
+	  
+	  // regular args
+	  environment sub = self->env->augment(self->args.begin(), self->args.end(),
+										   arg, arg + self->args.size());
 
-		for(Iterator it = arg; it != end; ++it) {
-		  const unsigned i = it - arg;
-		  args.data[i] = eval(env, *it);
-		}
-		
-		// augment environment from args 
-		sub = env->augment(self->args.begin(), self->args.end(),
-						   args.begin(), args.end() );
+	  // varargs
+	  if( self->vararg ) {
+		(*sub)[ *self->vararg ] = std::make_shared<vec<value>>(arg + self->args.size(), end);
 	  }
 	  
 	  return eval(sub, self->body);
-
 	}
 
 
 	// builtin application
 	template<class Iterator>
-	value operator()(const builtin& self, environment env, Iterator arg, Iterator end) const {
+	inline value operator()(const builtin& self, environment env, Iterator arg, Iterator end) const {
 
-	   // vla for args
-	  const unsigned argc = end - arg;
-	  macro_vla(value, args, argc);
-
-	  for(Iterator it = arg; it != end; ++it) {
-		const unsigned i = it - arg;
-		args.data[i] = eval(env, *it);
-	  }
-	  
 	  // call builtin 
-	  return self.ptr(env, args.begin(), args.end() );
+	  return self(env, arg, end);
 	}
 	
 
 	template<class T, class Iterator>
 	value operator()(const T& , environment , Iterator, Iterator ) const {
-	  throw error("invalid type in application");
+	  std::stringstream ss;
+	  ss << "invalid type in application: " << typeid(T).name();
+	  throw error(ss.str());
 	}
 
   };
 
 
   template<class Iterator>
-  static sexpr::expr apply_macro(lambda self, Iterator arg, Iterator end) {
-
-	// TODO we need to quote sexpr args to make them values
-	environment sub = self->env->augment(self->args.begin(), self->args.end(),
-										 arg, end);
-
-	// TODO we need to 
-	//  eval(sub, self->body)
-
-	// return res;
-
+  static value expand(lambda self, Iterator arg, Iterator end) {
+	const environment sub = self->env->augment(self->args.begin(), self->args.end(), arg, end);
+	return eval(sub, self->body);
   }
   
   
@@ -140,11 +123,11 @@ namespace lisp {
 		throw error("empty list in application");
 	  }
 
-	  const auto& head = self->front();
+	  const value& head = self->front();
 	  
 	  if( head.is<symbol>() ) {
 
-		const auto& s = head.as<symbol>();
+		const symbol& s = head.as<symbol>();
 		
 		// try special forms
 		{
@@ -159,31 +142,44 @@ namespace lisp {
 		  auto it = macro.find( s );
 		  if( it != macro.end() ) {
 
-			// build macro application 
-			// sexpr::list expr = self;
-			// expr[0] = it->second;
+			// expand macro
 
-			// evaluate macro
-			// sexpr::expr res = eval(env, expr);
+			value& arg = *(self->begin() + 1);
+			const value exp = apply(env, it->second, &arg, &arg + self->size() - 1);
+			// const value exp = expand(it->second, );
 
-			// and evaluate result
-			// return eval(env, res);
+			debug<2>() << "macro:\t" << value(self) << std::endl
+					   << "\t>>\t" << exp << std::endl;
+			
+			// evaluate result
+			return eval(env, exp); 
 		  }
 		}
 	  }
-
 	  
-
 	  // regular function application
 	  const value func = eval(env, head);
-	  return func.apply<value>( apply(), env, self->begin() + 1, self->end() );
+
+	  // TODO make function c-style variadic and simply push values
+	  // onto the stack ?
+
+	  // vla for evaluated args
+	  const unsigned argc = self->size() - 1;
+	  macro_vla(value, args, argc);
+	  
+	  unsigned i = 0;
+	  for(auto it = self->begin() + 1, end = self->end(); it != end; ++it, ++i) {
+		args.data[i] = eval(env, *it);
+	  }
+	  
+	  return apply(env, func, args.begin(), args.end() );
 	}
 
 	
 	// variables
 	inline value operator()(const symbol& self, environment env) const {
 
-	  return env->find( self, [self] {
+	  return env->find( self, [&] {
 		  throw error("unknown variable: " + std::string(self.name()) );
 		});
 
@@ -199,6 +195,7 @@ namespace lisp {
   };
   
 
+  // eval
   value eval(environment env, const value& expr) {
 	try { 
 	  return expr.apply<value>(evaluate(), env);
@@ -206,6 +203,11 @@ namespace lisp {
 	  std::cerr << "when evaluating: " << expr << '\n';
 	  throw e;
 	}
+  }
+
+  
+  value apply(environment env, const value& expr, value* arg, value* end) {
+	return expr.apply<value>(application(), env, arg, end);
   }
 
 
@@ -223,37 +225,61 @@ namespace lisp {
 	}
 
 	// TODO eval first ?
-	(*env)[ arg->as<symbol>() ] = eval(env, *(arg + 1));
+	value expr = eval(env, *(arg + 1));
+	(*env)[ arg->as<symbol>() ] = expr;
 	
 	return nil{};
   }
 
   
   static value eval_lambda(environment env, list_iterator arg, list_iterator end) {
+	static const symbol dot = ".";
+	
 	const unsigned argc = end - arg;
 	
 	if( argc != 2 ) {
 	  throw error("bad lambda syntax");
 	}
-
-	// TODO varargs
-	if( !arg->is<list>() ) {
-	  throw error("expected variable list for lambda");
+	
+	if( !arg->is<list>() && !arg->is<symbol>() ) {
+	  throw error("expected variable list or symbol for lambda arguments");
 	}
-
+	
 	lambda res = shared<lambda_type>();
+	
+	if( arg->is<symbol>() ) {
+	  res->vararg = shared(arg->as<symbol>());
+	} else {
+	  
+	  auto& args = arg->as<list>();
 
-	// args
-	for(const auto& s : *arg->as<list>() ) {
-	  if( !s.is<symbol>() ) {
-		throw error("variable names must be symbols");
-	  } else {
-		res->args.push_back( s.as<symbol>() );
+	  // check
+	  for(const auto& a : *args) {
+		if( !a.is<symbol>() ) {
+		  throw error("variable declarations must be symbols");
+		} 
+	  }
+	  
+	  for(auto it = args->begin(), end = args->end(); it != end; ++it ) {
+		auto& s = it->as<symbol>();
+
+		if( s == dot ) {
+		  // varargs
+		  if( it + 2 != end ) {
+			throw error("vararg must be the last in argument list");
+		  }
+		  res->vararg = shared( (it + 1)->as<symbol>() );
+		  break;
+			
+		} else {
+		  // regular args
+		  res->args.push_back( s );
+		}
 	  }
 	}
 
 	// body
-	res->body = *(arg + 1);
+	res->body = *(++arg);
 
 	// environment
 	res->env = env;
@@ -294,38 +320,39 @@ namespace lisp {
 	return expr.apply<value>(to_value());
   }
   
-  // struct to_sexpr {
+  
+  // struct quote {
 
   // 	template<class T>
-  // 	value operator()(const T& self) const {
-  // 	  throw error("can't convert to s-expr");
+  // 	value operator()(const T& self, environment) const {
+  // 	  return self;
   // 	}
 
-  // 	sexpr::expr operator()(const string& self) const {
-  // 	  return *self;
+  // 	value operator()(const list& self, environment env) const {
+
+  // 	  if(self->empty()) return self;
+
+  // 	  if( !(*self)[0].is<symbol>() ) return self;
+
+  // 	  if( (*self)[0].as<symbol>() != keyword.unquote ) return self;
+
+  // 	  if( self->size() != 2 ) {
+  // 		throw error("bad unquote syntax");
+  // 	  }
+
+  // 	  return eval(env, (*self)[1]);
   // 	}
-	
-  // 	sexpr::expr operator()(const list& self) const {
-  // 	  sexpr::list res;
-  // 	  res.reserve( self->size() );
-	  
-  // 	  std::transform(self->begin(), self->end(),
-  // 					 std::back_inserter(*res), [&](const value& v) {
-  // 					   return e.apply<sexpr::expr>( *this );
-  // 					 });
-  // 	  return res;
-  // 	}
-	
+
   // };
-
   
   static value eval_quote(environment, list_iterator arg, list_iterator end) {
 	const unsigned argc = end - arg;
+
 	if(argc != 1) {
 	  throw error("bad quote syntax");
 	}
-
-	return arg->apply<value>(to_value());
+	
+	return *arg;
   }
 
 
@@ -334,7 +361,9 @@ namespace lisp {
 	for(auto it = arg; it != end; ++it) {
 	  
 	  if(!it->is<list>() || it->as<list>()->size() != 2) {
-		throw error("condition should be a pair");
+		std::stringstream ss;
+		ss << "condition should be a pair: " << *it;
+		throw error(ss.str());
 	  }
 
 	  const vec<value>& cond = *it->as<list>();
@@ -343,7 +372,7 @@ namespace lisp {
 	  const value res = eval(env, cond[0]);
 	  
 	  // only false evaluates to false
-	  const bool fail = res.is<bool>() && !res.as<bool>();
+	  const bool fail = (res.is<bool>() && !res.as<bool>());
 
 	  if(!fail) return eval(env, cond[1]);
 	}
@@ -437,11 +466,39 @@ namespace lisp {
 	 out << "#<builtin>";
 	}
   
-	void operator()(const environment&, std::ostream& out ) const {
-	  out << "#<environment>";
+	void operator()(const environment& env, std::ostream& out ) const {
+	  // out << "#<environment>";
+	  out << *env;
 	}
+
   };
-	
+
+  std::ostream& operator<<(std::ostream& out, const environment_type& env) {
+
+	std::function< int( const environment_type& )> fun = [&](const environment_type& env) -> int{
+
+	  int depth = 0;
+	  
+	  if( env.parent ) {
+		depth = 1 + fun(*env.parent);
+	  }
+
+	  for(const auto& it : env) {
+
+		for(int i = 0; i < depth; ++i) {
+		  out << "  ";
+		}
+		out << it.first << ": " << std::flush<< it.second << std::endl;;
+	  }
+	  
+	  return depth;
+	};
+
+	fun(env);
+	return out;
+  }
+  
+  
   std::ostream& operator<<(std::ostream& out, const value& x) {
 	x.apply( stream(), out);
 	return out;

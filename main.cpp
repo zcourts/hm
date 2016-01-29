@@ -68,104 +68,202 @@ struct lisp_handler {
   lisp_handler() {
 	using namespace lisp;
 
-	(*env)[ "+" ] = builtin( [](environment, value* first, value* last) -> value {
-		  const unsigned argc = last - first;
-		  if(!argc) throw error("1+ args expected");
-		
-		  real res = 0;
+	(*env)[ "echo" ] = +[](environment, value* arg, value* last) -> value {
+	  for(value* it = arg; it != last; ++it) {
+		std::cout << *it << " ";
+	  }
+	  std::cout << std::endl;
+	  return nil();
+	};
 
-		  for(value* arg = first; arg != last; ++arg) {
-			res += arg->apply<real>( number() );
-		  }
+	(*env)[ "list?" ] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
+	  if( argc != 1) throw error("argc != 1");
 
-		  return res;
-		});
+	  return arg->is<list>();
+	};
 
-	(*env)[ "*" ] = builtin( [](environment, value* first, value* last) -> value {
-		  const unsigned argc = last - first;
-		  if(!argc) throw error("1+ args expected");
-		
-		  real res = 1;
-
-		  for(value* arg = first; arg != last; ++arg) {
-			res *= arg->apply<real>( number() );
-		  }
-
-		  return res;
-		});
 	
-	(*env)[ "=" ] = builtin( [](environment, value* first, value* last) -> value {
-		const unsigned argc = last - first;
-		if(argc < 2) throw error("2+ args expected");
+	(*env)[ "length" ] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
+	  if( argc != 1) throw error("argc != 1");
+	  if( !arg->is<list>() ) throw error("list expected");
+	  return (int) arg->as<list>()->size();
+	};
+	
+	(*env)[ "eq?" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  if(argc < 2) throw error("argc < 2");
 
-		const real val = first[0].apply<real>(number());
+	  const value& first = *arg;
 
-		for(value* arg = first + 1; arg != last; ++arg) {
-		  if( val != arg->apply<real>(number()) ) return false;
-		}
+	  for(value* it = arg + 1; it != end; ++it) {
+		if( first != *it ) return false;
+	  }
+
+	  return true;
+	};
+
+	
+	(*env)[ "nth" ] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
+	  if( argc != 2) throw error("argc != 2");
+	  if( !arg->is<list>() ) throw error("list expected");
+	  if( !(arg + 1)->is<integer>() ) throw error("integer expected");		
+	  return (*arg->as<list>())[ (arg + 1)->as<integer>() ];
+	};
+
+	(*env)["cons"] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
+	  if( argc != 2) throw error("argc != 2");
+
+	  const value& x = *arg;
+	  ++arg;
+	  
+	  if( !arg->is<list>() ) throw error("list expected");
+	  const list& y = arg->as<list>();
+	  
+	  list res = shared< vec<value> >();
+	  res->push_back(x);
+	  res->insert(res->end(), y->begin(), y->end());
+	  
+	  return res;
+	};
+
+	
+	(*env)[ "map" ] = +[](environment env, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
+	  if( argc != 2) throw error("argc != 2");
+
+	  if( !arg->is<list>() ) throw error("list expected");
+
+	  auto res = std::make_shared< vec<value> >();
+	  res->reserve(arg->as<list>()->size());
+
+	  const value& func = *(arg + 1);
+
+	  std::transform(arg->as<list>()->begin(), arg->as<list>()->end(),
+					 std::back_inserter(*res), [&](value& x) {
+					   return lisp::apply(env, func, &x, &x + 1);
+					 });
 		
-		return true;
-	  });	
+	  return res;
+	};	
 
-	(*env)[ "-" ] = builtin( [](environment, value* first, value* last ) -> value {
-		const unsigned argc = last - first;
-		if(!argc) throw error("1+ args expected");
+	
+	(*env)[ "list" ] = +[](environment, value* arg, value* last) -> value {
+	  return std::make_shared<vec<value>>(arg, last);
+	};
+	
+	
+	(*env)[ "+" ] = +[](environment, value* first, value* last) -> value {
+	  const unsigned argc = last - first;
+	  if(!argc) throw error("1+ args expected");
 		
-		real res = 0;
+	  real res = 0;
 
-		for(value* arg = first; arg != last; ++arg) {
+	  for(value* arg = first; arg != last; ++arg) {
+		res += arg->apply<real>( number() );
+	  }
 
-		  const real n = arg->apply<real>(number());
-		  res = (arg == first) ? n : res - n;
+	  return res;
+	};
 
-		}
-
-		return res;
-	  });
-
-
-	(*env)[ "make-env" ] = builtin( [](environment, value* first, value* last) -> value {
-		const unsigned argc = last - first;
-		if(argc) throw error("unexpected argument");
-
-		return shared<environment_type>();
-	  });
-
-	(*env)[ "@" ] = builtin( [](environment, value* first, value* last) -> value {
-
-		const unsigned argc = last - first;
-
-		if(argc != 2 ) throw error("expected 2 arguments");
+	
+	(*env)[ "*" ] = +[](environment, value* first, value* last) -> value {
+	  const unsigned argc = last - first;
+	  if(!argc) throw error("1+ args expected");
 		
-		if( !first[0].is<environment>() ) throw error("expected environment");
-		if( !first[1].is<symbol>() ) throw error("expected symbol");
+	  real res = 1;
 
-		auto& self = first[0].as<environment>();
-		auto& s = first[1].as<symbol>();
+	  for(value* arg = first; arg != last; ++arg) {
+		res *= arg->apply<real>( number() );
+	  }
 
-		auto& var = self->find(s, [&] {
-			throw error("key not found " + std::string(s.name()) );
-		  });
+	  return res;
+	};
+
+	
+	(*env)[ "=" ] = +[](environment, value* first, value* last) -> value {
+	  const unsigned argc = last - first;
+	  if(argc < 2) throw error("2+ args expected");
+
+	  const real val = first[0].apply<real>(number());
+
+	  for(value* arg = first + 1; arg != last; ++arg) {
+		if( val != arg->apply<real>(number()) ) return false;
+	  }
 		
-		return var;
-	  });
+	  return true;
+	};	
 
-	(*env)[ "@!" ] = builtin( [](environment, value* arg, value* end) -> value {
+	
+	(*env)[ "-" ] = +[](environment, value* first, value* last ) -> value {
+	  const unsigned argc = last - first;
+	  if(!argc) throw error("1+ args expected");
 		
-		const unsigned argc = end - arg;
+	  real res = 0;
 
-		if(argc != 3 ) throw error("expected 3 arguments");
+	  for(value* arg = first; arg != last; ++arg) {
+
+		const real n = arg->apply<real>(number());
+		res = (arg == first) ? n : res - n;
+
+	  }
+
+	  return res;
+	};
+
+
+	(*env)[ "make-env" ] = +[](environment, value* first, value* last) -> value {
+	  const unsigned argc = last - first;
+	  if(argc) throw error("unexpected argument");
+
+	  return shared<environment_type>();
+	};
+
+	
+	(*env)[ "env" ] = +[](environment env, value* , value* ) -> value {
+	  return env;
+	};
+
+	
+	(*env)[ "@" ] = +[](environment, value* first, value* last) -> value {
+
+	  const unsigned argc = last - first;
+
+	  if(argc != 2 ) throw error("expected 2 arguments");
 		
-		if( !arg[0].is<environment>() ) throw error("expected environment");
-		if( !arg[1].is<symbol>() ) throw error("expected symbol");
+	  if( !first[0].is<environment>() ) throw error("expected environment");
+	  if( !first[1].is<symbol>() ) throw error("expected symbol");
 
-		auto& self = arg[0].as<environment>();
-		auto& s = arg[1].as<symbol>();
+	  auto& self = first[0].as<environment>();
+	  auto& s = first[1].as<symbol>();
 
-		(*self)[s] = arg[2];
-		return nil();
+	  auto& var = self->find(s, [&] {
+		  throw error("key not found " + std::string(s.name()) );
+		});
 		
-	  });	
+	  return var;
+	};
+
+	
+	(*env)[ "@!" ] = +[](environment, value* arg, value* end) -> value {
+		
+	  const unsigned argc = end - arg;
+
+	  if(argc != 3 ) throw error("expected 3 arguments");
+		
+	  if( !arg[0].is<environment>() ) throw error("expected environment");
+	  if( !arg[1].is<symbol>() ) throw error("expected symbol");
+
+	  auto& self = arg[0].as<environment>();
+	  auto& s = arg[1].as<symbol>();
+
+	  (*self)[s] = arg[2];
+	  return nil();
+		
+	};	
 	
   }
 
@@ -372,12 +470,13 @@ int main(int argc, const char* argv[] ) {
   vec<std::string> remaining;
   auto vm = parse_options(argc, argv, remaining);
   
- 
-  
   sexpr_parser parser;
 
   if(vm.count("lisp")) {
 	parser.handler = lisp_handler{};
+
+	std::ifstream init("init.lisp");
+	parser( init );
   } else {
 	parser.handler = hm_handler{};
   }

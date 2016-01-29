@@ -11,7 +11,10 @@ namespace lisp {
   // values
   struct value;
 
-  struct nil { };  
+  struct nil {
+	inline bool operator==(const nil&) const { return true;}
+  };
+  
   using boolean = sexpr::boolean;
   using integer = sexpr::integer;
   using real = sexpr::real;
@@ -27,13 +30,8 @@ namespace lisp {
   class environment_type;
   using environment = ref<environment_type>;
 
-  struct builtin {
-	using type = value (*)(environment env, value* first, value* last);
-	type ptr;
-	
-	builtin(type ptr = nullptr) : ptr(ptr) { }
-  };
-
+  using builtin = value (*)(environment env, value* first, value* last);
+  
   struct value : variant<nil, boolean, integer, real, symbol, string, list, lambda, environment, builtin> {
 	using variant::variant;
 
@@ -72,8 +70,6 @@ namespace lisp {
 	  return res;
 	}
 
-
-	
 	struct key_error : std::runtime_error {
 	  key_error() : std::runtime_error("key not found") { }
 	};
@@ -95,7 +91,8 @@ namespace lisp {
 	}
 
 	using environment_type::map::operator[];
-	
+
+	friend std::ostream& operator<<(std::ostream& out, const environment_type& env);
 	
   };
 
@@ -105,6 +102,7 @@ namespace lisp {
    
 	environment env;
 	vec<symbol> args;
+	ref<symbol> vararg;
 	value body;
   };
 
@@ -113,8 +111,10 @@ namespace lisp {
   
   // evaluate expression
   value eval(environment env, const value& expr);
-  
 
+  // apply expr to (evaluated) args
+  value apply(environment env, const value& expr, value* arg, value* end);
+  
 }
 
 

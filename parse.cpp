@@ -62,6 +62,15 @@ static sexpr::list quote_expr(sexpr::expr& expr) {
   return { {symbol("quote"), std::move(expr)} };
 }
 
+static sexpr::list unquote_expr(sexpr::expr& expr) {
+  return { {symbol("unquote"), std::move(expr)} };
+}
+
+
+static sexpr::list quasiquote_expr(sexpr::expr& expr) {
+  return { {symbol("quasiquote"), std::move(expr)} };
+}
+
 
 template<class Iterator>
 static sexpr::list parse(Iterator first, Iterator last) {
@@ -71,13 +80,13 @@ static sexpr::list parse(Iterator first, Iterator last) {
   using boost::phoenix::construct;  
   using boost::phoenix::val;
 
-  auto comment = qi::lexeme[ qi::char_('#') >> *(qi::char_ - qi::eol) >> qi::eol];
+  auto comment = qi::lexeme[ qi::char_(';') >> *(qi::char_ - qi::eol) >> qi::eol];
   auto skip = qi::space | comment;
   
   using skip_type = decltype(skip);
 
   qi::rule<Iterator, skip_type, sexpr::expr()> atom, symbol, integer, real, string, boolean, t, f, expr;
-  qi::rule<Iterator, skip_type, sexpr::list()> list, seq, quote, start;
+  qi::rule<Iterator, skip_type, sexpr::list()> list, seq, quote, quasiquote, unquote, start;
   
   integer = qi::int_;
 
@@ -96,13 +105,16 @@ static sexpr::list parse(Iterator first, Iterator last) {
   symbol = (as_string[ lexeme[+(~qi::char_(exclude))] ])[ _val = construct<::symbol>(_1) ];
 
   quote = '\'' >> expr[ _val = bind(&quote_expr, _1) ];
+
+  quasiquote = '`' >> expr[ _val = bind(&quasiquote_expr, _1) ];    
+  unquote = ',' >> expr[ _val = bind(&unquote_expr, _1) ];  
   
   seq = (*expr);
 
   list = '(' >> seq > ')';
 
   atom = real | integer | boolean | string | symbol;
-  expr = quote | list | atom;
+  expr = quote | quasiquote | unquote | list | atom;
   
   start = seq;
   
