@@ -80,11 +80,11 @@ static sexpr::list parse(Iterator first, Iterator last) {
   using boost::phoenix::construct;  
   using boost::phoenix::val;
 
-  auto comment = qi::lexeme[ qi::char_(';') >> *(qi::char_ - qi::eol) >> qi::eol];
-  auto skip = qi::space | comment;
+  using skip_type = qi::rule<Iterator>;
   
-  using skip_type = decltype(skip);
-
+  skip_type comment = qi::lexeme[ qi::char_(';') >> *(qi::char_ - qi::eol) >> qi::eol];
+  skip_type skip = qi::space | comment;
+  
   qi::rule<Iterator, skip_type, sexpr::expr()> atom, symbol, integer, real, string, boolean, t, f, expr;
   qi::rule<Iterator, skip_type, sexpr::list()> list, seq, quote, quasiquote, unquote, start;
   
