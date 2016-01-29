@@ -1,0 +1,5 @@
+(def compose
+	 (fn (f g x) (f (g x))))
+
+	 
+	 
