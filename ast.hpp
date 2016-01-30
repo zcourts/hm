@@ -4,6 +4,8 @@
 #include "common.hpp"
 #include "variant.hpp"
 
+#include <string>
+
 // syntax tree
 namespace ast {
 
