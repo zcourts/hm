@@ -5,6 +5,7 @@
 #include "sexpr.hpp"
 
 #include <map>
+#include <unordered_map>
 
 namespace lisp {
 
@@ -22,6 +23,7 @@ namespace lisp {
   // wrap these to avoid too large value sizes
   // TODO boost::intrusive_ptr instead of ref<> and make it 2 words  
   using string = ref<sexpr::string>;
+
   using list = ref< vec<value> >;
   
   struct lambda_type;
@@ -31,8 +33,11 @@ namespace lisp {
   using environment = ref<environment_type>;
 
   using builtin = value (*)(environment env, value* first, value* last);
+
+  struct object_type;
+  using object = ref<object_type>;
   
-  struct value : variant<nil, boolean, integer, real, symbol, string, list, lambda, environment, builtin> {
+  struct value : variant<nil, boolean, integer, real, symbol, string, list, lambda, environment, builtin, object> {
 	using variant::variant;
 
 	friend std::ostream& operator<<(std::ostream& out, const value& );
@@ -45,7 +50,6 @@ namespace lisp {
 	using std::runtime_error::runtime_error;
   };
 
-  
   
   class environment_type : public std::enable_shared_from_this<environment_type>,
 						   protected std::map<symbol, value> {
@@ -93,7 +97,6 @@ namespace lisp {
 	using environment_type::map::operator[];
 
 	friend std::ostream& operator<<(std::ostream& out, const environment_type& env);
-	
   };
 
   
@@ -105,7 +108,15 @@ namespace lisp {
 	ref<symbol> vararg;
 	value body;
   };
+  
 
+  // testing stuff
+  struct object_type : std::unordered_map< symbol, value > {
+	symbol type;
+	object_type(symbol type = "object") : type(type) { }
+  };
+
+  
   // build a value from a pure symbolic expression
   value convert(const sexpr::expr& expr);
   

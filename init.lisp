@@ -1,7 +1,7 @@
 
 ;; 
-(def not (fn (x) (cond (x false) (true true))))
-(def empty? (fn (x) (= 0 (length x))))
+(def not (lambda (x) (cond (x false) (true true))))
+(def empty? (lambda (x) (= 0 (length x))))
 
 ;; the mother of all macros TODO unquote-splicing ?
 (defmacro quasiquote (e)
@@ -9,7 +9,7 @@
     ;; not a list: just quote
     ((not (list? e)) (list 'quote e))
     ;; empty list: as is
-    ((empty? e) e)
+    ((empty? e) (list 'quote e))
 
     ;; unquote
     ((eq? (nth e 0) 'unquote)
@@ -17,7 +17,7 @@
            ('else (error "bad unquote syntax"))))
     ('else
      ;; (quasiquote (a b c)) => (list (quasiquote a) (quasiquote b) (quasiquote c))
-     (cons 'list (map e (fn (x) (list 'quasiquote x)))))))
+     (cons 'list (list-map e (lambda (x) (list 'quasiquote x)))))))
 
 (defmacro if (test conseq alt)
   `(cond (,test ,conseq) (true ,alt)))
@@ -31,10 +31,12 @@
       `(if ,head ,(cons 'and tail) false)))
 
 (defmacro defn (name args . body)
-  `(def ,name (fn ,args ,(cons 'do body))))
-
+  `(def ,name (lambda ,args ,(cons 'do body))))
 
 (defmacro assert (test)
   `(cond ((not ,test) (error '("assertion failed:" ,test)))))
+
+
+
 
 (echo "lisp interpreter started")

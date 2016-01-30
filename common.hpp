@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
 
 class symbol {
   const char* string = nullptr;
@@ -32,5 +33,18 @@ static ref<T> shared(const T& x = {}) {
 template<class T>
 using vec = std::vector<T>;
 
+namespace std {
+
+  template<class T>
+  struct hash;
+
+  template<>
+  struct hash< symbol > {
+
+	inline std::size_t operator()(const symbol& s) const {
+	  return std::hash<const char*>{}(s.name());
+	}
+  };
+}
 
 #endif

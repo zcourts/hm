@@ -30,7 +30,7 @@ namespace lisp {
 
   static struct {
 	symbol define = "def";
-	symbol lambda = "fn";
+	symbol lambda = "lambda";
 	symbol quote = "quote";
 	symbol begin = "do";
 	symbol cond = "cond";
@@ -138,8 +138,8 @@ namespace lisp {
 			value& arg = self->begin()[1];
 			const value exp = apply(env, it->second, &arg, &arg + self->size() - 1);
 
-			// debug<2>() << "macro:\t" << value(self) << std::endl
-			// 		   << "\t>>\t" << exp << std::endl;
+			debug<2>() << "macro:\t" << value(self) << std::endl
+					   << "\t>>\t" << exp << std::endl;
 			
 			// evaluate result
 			return eval(env, exp); 

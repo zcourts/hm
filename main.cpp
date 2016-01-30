@@ -62,9 +62,119 @@ struct number {
 
 
 
+namespace lisp {
+
+  struct type {
+	
+	symbol operator()(const lisp::integer& ) const {
+	  static const symbol res = "int";
+	  return res;
+	}
+
+	
+	symbol operator()(const symbol& ) const {
+	  static const symbol res = "symbol";
+	  return res;
+	}
+
+	
+	symbol operator()(const lisp::string& ) const {
+	  static const symbol res = "string";
+	  return res;
+	}
+
+	
+	symbol operator()(const lisp::real& ) const {
+	  static const symbol res = "real";
+	  return res;
+	}
+
+
+	symbol operator()(const lisp::boolean& ) const {
+	  static const symbol res = "bool";
+	  return res;
+	}
+
+
+	symbol operator()(const lisp::nil& ) const {
+	  static const symbol res = "void";
+	  return res;
+	}
+
+	symbol operator()(const lisp::list& ) const {
+	  static const symbol res = "list";
+	  return res;
+	}
+
+
+	symbol operator()(const lisp::object& self) const {
+	  return self->type;
+	}	
+
+
+	symbol operator()(const lisp::environment& ) const {
+	  static const symbol res = "environment";
+	  return res;
+	}
+
+
+	symbol operator()(const lisp::lambda& ) const {
+	  static const symbol res = "lambda";
+	  return res;
+	}
+
+	
+	symbol operator()(const lisp::builtin& ) const {
+	  static const symbol res = "builtin";
+	  return res;
+	}
+	
+	
+	template<class T>
+	symbol operator()(const T& ) const {
+	  throw lisp::error("unimplemented");
+	}
+
+	
+  };
+}
+
 struct lisp_handler {
   mutable lisp::environment env = shared<lisp::environment_type>();
 
+  
+  template<class T>
+  static T& expect_type(lisp::value& self)  {
+	if( !self.is<T>() ) {
+	  std::stringstream ss;
+
+	  if(std::is_same<T, lisp::object>::value ) {
+		ss << "object";
+	  } else {
+		T* derp = nullptr;		// #yolo
+		ss << lisp::type{}(*derp).name();
+	  } 
+	  ss << " expected";
+	  throw lisp::error( ss.str() );
+	}
+	
+	return self.as<T>();
+  }
+
+
+  static lisp::object& expect_type(const symbol& type, lisp::value& self)  {
+	if( !self.is<lisp::object>() || self.as<lisp::object>()->type != type) {
+	  throw lisp::error( std::string( type.name() ) + " expected");
+	}
+	
+	return self.as<lisp::object>();
+  }
+
+  static void expect_argc(unsigned argc, unsigned n) {
+	if(argc != n) throw lisp::error("argc != n");
+  }
+  
+  
   lisp_handler() {
 	using namespace lisp;
 
@@ -120,6 +230,89 @@ struct lisp_handler {
 	  return true;
 	};
 
+
+	(*env)[ "type" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  if( argc != 1) throw error("argc != 1");
+	  return arg->apply<value>( lisp::type() );
+	};
+
+	
+	(*env)[ "object-get" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+
+	  object& obj = expect_type<object>( arg[0] );
+	  symbol& attr = expect_type<symbol>( arg[1]);
+
+	  auto it = obj->find( attr );
+	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	  return it->second;
+	};
+
+	
+	(*env)[ "object-set!" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 3);
+	  
+	  object& obj = expect_type<object>( arg[0] );
+	  symbol& attr = expect_type<symbol>( arg[1]);
+
+	  auto it = obj->find( attr );
+	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	  it->second = arg[2];
+	  return nil();
+	};
+	
+	(*env)[ "object-add!" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 3);
+	  
+	  object& obj = expect_type<object>( arg[0] );
+	  symbol& attr = expect_type<symbol>( arg[1]);
+
+	  auto it = obj->find( attr );
+	  if( it != obj->end() ) throw error(std::string("attribute already exists: ") + attr.name() );
+	  it->second = arg[2];
+	  return nil();
+	};	
+	
+	
+	(*env) [ "object" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 1);
+
+	  symbol& type = expect_type<symbol>(arg[0]);
+	  object res = std::make_shared<object_type>(type);
+
+	  return res;
+	};
+
+
+	(*env)[ "list-iter" ] = +[](environment env, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+
+	  list& e = expect_type<list>(arg[0]);
+
+	  for( auto& v : *e ) {
+		lisp::apply(env, arg[1], &v, &v + 1);
+	  }
+	  return nil();
+	};
+	  
+
+	(*env)["symbol-append"] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+	  
+	  symbol& lhs = expect_type<symbol>(arg[0]);
+	  symbol& rhs = expect_type<symbol>(arg[1]);
+
+	  symbol res = std::string(lhs.name()) + std::string(rhs.name());
+	  return res;
+	};
+	
 	
 	(*env)[ "nth" ] = +[](environment, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
@@ -147,7 +340,7 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "map" ] = +[](environment env, value* arg, value* last) -> value {
+	(*env)[ "list-map" ] = +[](environment env, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  if( argc != 2) throw error("argc != 2");
 
