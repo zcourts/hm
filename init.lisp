@@ -1,7 +1,20 @@
 
-;; 
+;; some helpers
 (def not (lambda (x) (cond (x false) (true true))))
-(def empty? (lambda (x) (= 0 (length x))))
+
+(def length (lambda (x)
+			  (cond ((null? x) 0)
+					('else (+ 1 (length (cdr x)))))))
+
+(def cadr (lambda (x) (car (cdr x))))
+
+(def map (lambda (x f)
+		   (cond ((null? x) x)
+				 ('else (cons (f (car x)) (map (cdr x) f))))))
+
+(def list (lambda args args))
+
+
 
 ;; the mother of all macros TODO unquote-splicing ?
 (defmacro quasiquote (e)
@@ -9,25 +22,25 @@
     ;; not a list: just quote
     ((not (list? e)) (list 'quote e))
     ;; empty list: as is
-    ((empty? e) (list 'quote e))
+    ((null? e) (list 'quote e))
 
     ;; unquote
-    ((eq? (nth e 0) 'unquote)
-     (cond ((= (length e) 2) (nth e 1))
+    ((eq? (car e) 'unquote)
+     (cond ((= (length e) 2) (cadr e))
            ('else (error "bad unquote syntax"))))
     ('else
      ;; (quasiquote (a b c)) => (list (quasiquote a) (quasiquote b) (quasiquote c))
-     (cons 'list (list-map e (lambda (x) (list 'quasiquote x)))))))
+     (cons 'list (map e (lambda (x) (list 'quasiquote x)))))))
 
 (defmacro if (test conseq alt)
   `(cond (,test ,conseq) (true ,alt)))
 
 (defmacro or (head . tail)
-  (if (empty? head) head
+  (if (null? head) head
       `(if ,head true ,(cons 'or tail))))
 
 (defmacro and (head . tail)
-  (if (empty? head) head
+  (if (null? head) head
       `(if ,head ,(cons 'and tail) false)))
 
 (defmacro defn (name args . body)
@@ -35,7 +48,6 @@
 
 (defmacro assert (test)
   `(cond ((not ,test) (error '("assertion failed:" ,test)))))
-
 
 
 

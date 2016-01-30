@@ -96,11 +96,6 @@ namespace lisp {
 	}
 
 
-	symbol operator()(const lisp::nil& ) const {
-	  static const symbol res = "void";
-	  return res;
-	}
-
 	symbol operator()(const lisp::list& ) const {
 	  static const symbol res = "list";
 	  return res;
@@ -183,7 +178,7 @@ struct lisp_handler {
 		std::cout << (it == arg ? "" : " ") << *it;
 	  }
 	  std::cout << std::endl;
-	  return nil();
+	  return lisp::null;
 	};
 
 
@@ -200,22 +195,7 @@ struct lisp_handler {
 
 	  throw error( ss.str() );
 	};
-	
-	
-	(*env)[ "list?" ] = +[](environment, value* arg, value* last) -> value {
-	  const unsigned argc = last - arg;
-	  if( argc != 1) throw error("argc != 1");
 
-	  return arg->is<list>();
-	};
-
-	
-	(*env)[ "length" ] = +[](environment, value* arg, value* last) -> value {
-	  const unsigned argc = last - arg;
-	  if( argc != 1) throw error("argc != 1");
-	  if( !arg->is<list>() ) throw error("list expected");
-	  return (int) arg->as<list>()->size();
-	};
 	
 	(*env)[ "eq?" ] = +[](environment, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
@@ -229,140 +209,119 @@ struct lisp_handler {
 
 	  return true;
 	};
-
-
-	(*env)[ "type" ] = +[](environment, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
-	  if( argc != 1) throw error("argc != 1");
-	  return arg->apply<value>( lisp::type() );
-	};
-
-	
-	(*env)[ "object-get" ] = +[](environment, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
-	  expect_argc(argc, 2);
-
-	  object& obj = expect_type<object>( arg[0] );
-	  symbol& attr = expect_type<symbol>( arg[1]);
-
-	  auto it = obj->find( attr );
-	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
-	  return it->second;
-	};
-
-	
-	(*env)[ "object-set!" ] = +[](environment, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
-	  expect_argc(argc, 3);
-	  
-	  object& obj = expect_type<object>( arg[0] );
-	  symbol& attr = expect_type<symbol>( arg[1]);
-
-	  auto it = obj->find( attr );
-	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
-	  it->second = arg[2];
-	  return nil();
-	};
-	
-	(*env)[ "object-add!" ] = +[](environment, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
-	  expect_argc(argc, 3);
-	  
-	  object& obj = expect_type<object>( arg[0] );
-	  symbol& attr = expect_type<symbol>( arg[1]);
-
-	  auto it = obj->find( attr );
-	  if( it != obj->end() ) throw error(std::string("attribute already exists: ") + attr.name() );
-	  it->second = arg[2];
-	  return nil();
-	};	
 	
 	
-	(*env) [ "object" ] = +[](environment, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
+	(*env)[ "list?" ] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
 	  expect_argc(argc, 1);
 
-	  symbol& type = expect_type<symbol>(arg[0]);
-	  object res = std::make_shared<object_type>(type);
-
-	  return res;
+	  return arg[0].is<list>();
 	};
 
+	(*env)[ "null?" ] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
+	  expect_argc(argc, 1);
 
-	(*env)[ "list-iter" ] = +[](environment env, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
-	  expect_argc(argc, 2);
-
-	  list& e = expect_type<list>(arg[0]);
-
-	  for( auto& v : *e ) {
-		lisp::apply(env, arg[1], &v, &v + 1);
-	  }
-	  return nil();
+	  return arg[0] == null;
 	};
-	  
 
-	(*env)["symbol-append"] = +[](environment, value* arg, value* end) -> value {
-	  const unsigned argc = end - arg;
+		(*env)["cons"] = +[](environment, value* arg, value* last) -> value {
+	  const unsigned argc = last - arg;
 	  expect_argc(argc, 2);
 	  
-	  symbol& lhs = expect_type<symbol>(arg[0]);
-	  symbol& rhs = expect_type<symbol>(arg[1]);
-
-	  symbol res = std::string(lhs.name()) + std::string(rhs.name());
-	  return res;
+	  return std::make_shared<cons>(arg[0], expect_type<list>(arg[1]));
 	};
-	
-	
-	(*env)[ "nth" ] = +[](environment, value* arg, value* last) -> value {
+
+	(*env)["car"] = +[](environment, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
-	  if( argc != 2) throw error("argc != 2");
-	  if( !arg->is<list>() ) throw error("list expected");
-	  if( !(arg + 1)->is<integer>() ) throw error("integer expected");		
-	  return (*arg->as<list>())[ (arg + 1)->as<integer>() ];
+	  expect_argc(argc, 1);
+	  
+	  return expect_type<list>(arg[0])->head;
 	};
 
-	(*env)["cons"] = +[](environment, value* arg, value* last) -> value {
+	(*env)["cdr"] = +[](environment, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
-	  if( argc != 2) throw error("argc != 2");
+	  expect_argc(argc, 1);
+	  
+	  return expect_type<list>(arg[0])->tail;
+	};	  
 
-	  const value& x = *arg;
-	  ++arg;
-	  
-	  if( !arg->is<list>() ) throw error("list expected");
-	  const list& y = arg->as<list>();
-	  
-	  list res = shared< vec<value> >();
-	  res->push_back(x);
-	  res->insert(res->end(), y->begin(), y->end());
-	  
-	  return res;
-	};
 
 	
-	(*env)[ "list-map" ] = +[](environment env, value* arg, value* last) -> value {
-	  const unsigned argc = last - arg;
-	  if( argc != 2) throw error("argc != 2");
-
-	  if( !arg->is<list>() ) throw error("list expected");
-
-	  auto res = std::make_shared< vec<value> >();
-	  res->reserve(arg->as<list>()->size());
-
-	  const value& func = *(arg + 1);
-
-	  std::transform(arg->as<list>()->begin(), arg->as<list>()->end(),
-					 std::back_inserter(*res), [&](value& x) {
-					   return lisp::apply(env, func, &x, &x + 1);
-					 });
-		
-	  return res;
-	};	
+	// (*env)[ "type" ] = +[](environment, value* arg, value* end) -> value {
+	//   const unsigned argc = end - arg;
+	//   if( argc != 1) throw error("argc != 1");
+	//   return arg->apply<value>( lisp::type() );
+	// };
 
 	
-	(*env)[ "list" ] = +[](environment, value* arg, value* last) -> value {
-	  return std::make_shared<vec<value>>(arg, last);
-	};
+	// (*env)[ "object-get" ] = +[](environment, value* arg, value* end) -> value {
+	//   const unsigned argc = end - arg;
+	//   expect_argc(argc, 2);
+
+	//   object& obj = expect_type<object>( arg[0] );
+	//   symbol& attr = expect_type<symbol>( arg[1]);
+
+	//   auto it = obj->find( attr );
+	//   if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	//   return it->second;
+	// };
+
+	
+	// (*env)[ "object-set!" ] = +[](environment, value* arg, value* end) -> value {
+	//   const unsigned argc = end - arg;
+	//   expect_argc(argc, 3);
+	  
+	//   object& obj = expect_type<object>( arg[0] );
+	//   symbol& attr = expect_type<symbol>( arg[1]);
+
+	//   auto it = obj->find( attr );
+	//   if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	//   it->second = arg[2];
+	//   return nil();
+	// };
+	
+	// (*env)[ "object-add!" ] = +[](environment, value* arg, value* end) -> value {
+	//   const unsigned argc = end - arg;
+	//   expect_argc(argc, 3);
+	  
+	//   object& obj = expect_type<object>( arg[0] );
+	//   symbol& attr = expect_type<symbol>( arg[1]);
+
+	//   auto it = obj->find( attr );
+	//   if( it != obj->end() ) throw error(std::string("attribute already exists: ") + attr.name() );
+	//   it->second = arg[2];
+	//   return nil();
+	// };	
+	
+	
+	// (*env) [ "object" ] = +[](environment, value* arg, value* end) -> value {
+	//   const unsigned argc = end - arg;
+	//   expect_argc(argc, 1);
+
+	//   symbol& type = expect_type<symbol>(arg[0]);
+	//   object res = std::make_shared<object_type>(type);
+
+	//   return res;
+	// };
+
+
+
+	// (*env)["symbol-append"] = +[](environment, value* arg, value* end) -> value {
+	//   const unsigned argc = end - arg;
+	//   expect_argc(argc, 2);
+	  
+	//   symbol& lhs = expect_type<symbol>(arg[0]);
+	//   symbol& rhs = expect_type<symbol>(arg[1]);
+
+	//   symbol res = std::string(lhs.name()) + std::string(rhs.name());
+	//   return res;
+	// };
+	
+	
+
+	
+
 	
 	
 	(*env)[ "+" ] = +[](environment, value* first, value* last) -> value {
@@ -424,55 +383,55 @@ struct lisp_handler {
 	};
 
 
-	(*env)[ "make-env" ] = +[](environment, value* first, value* last) -> value {
-	  const unsigned argc = last - first;
-	  if(argc) throw error("unexpected argument");
+	// (*env)[ "make-env" ] = +[](environment, value* first, value* last) -> value {
+	//   const unsigned argc = last - first;
+	//   if(argc) throw error("unexpected argument");
 
-	  return shared<environment_type>();
-	};
-
-	
-	(*env)[ "env" ] = +[](environment env, value* , value* ) -> value {
-	  return env;
-	};
+	//   return shared<environment_type>();
+	// };
 
 	
-	(*env)[ "@" ] = +[](environment, value* first, value* last) -> value {
-
-	  const unsigned argc = last - first;
-
-	  if(argc != 2 ) throw error("expected 2 arguments");
-		
-	  if( !first[0].is<environment>() ) throw error("expected environment");
-	  if( !first[1].is<symbol>() ) throw error("expected symbol");
-
-	  auto& self = first[0].as<environment>();
-	  auto& s = first[1].as<symbol>();
-
-	  auto& var = self->find(s, [&] {
-		  throw error("key not found " + std::string(s.name()) );
-		});
-		
-	  return var;
-	};
+	// (*env)[ "env" ] = +[](environment env, value* , value* ) -> value {
+	//   return env;
+	// };
 
 	
-	(*env)[ "@!" ] = +[](environment, value* arg, value* end) -> value {
-		
-	  const unsigned argc = end - arg;
+	// (*env)[ "@" ] = +[](environment, value* first, value* last) -> value {
 
-	  if(argc != 3 ) throw error("expected 3 arguments");
-		
-	  if( !arg[0].is<environment>() ) throw error("expected environment");
-	  if( !arg[1].is<symbol>() ) throw error("expected symbol");
+	//   const unsigned argc = last - first;
 
-	  auto& self = arg[0].as<environment>();
-	  auto& s = arg[1].as<symbol>();
-
-	  (*self)[s] = arg[2];
-	  return nil();
+	//   if(argc != 2 ) throw error("expected 2 arguments");
 		
-	};	
+	//   if( !first[0].is<environment>() ) throw error("expected environment");
+	//   if( !first[1].is<symbol>() ) throw error("expected symbol");
+
+	//   auto& self = first[0].as<environment>();
+	//   auto& s = first[1].as<symbol>();
+
+	//   auto& var = self->find(s, [&] {
+	// 	  throw error("key not found " + std::string(s.name()) );
+	// 	});
+		
+	//   return var;
+	// };
+
+	
+	// (*env)[ "@!" ] = +[](environment, value* arg, value* end) -> value {
+		
+	//   const unsigned argc = end - arg;
+
+	//   if(argc != 3 ) throw error("expected 3 arguments");
+		
+	//   if( !arg[0].is<environment>() ) throw error("expected environment");
+	//   if( !arg[1].is<symbol>() ) throw error("expected symbol");
+
+	//   auto& self = arg[0].as<environment>();
+	//   auto& s = arg[1].as<symbol>();
+
+	//   (*self)[s] = arg[2];
+	//   return nil();
+		
+	// };	
 	
   }
 
@@ -484,7 +443,7 @@ struct lisp_handler {
 		// std::cout << s << std::endl;
 		const lisp::value res = lisp::eval(env, lisp::convert(s) );
 
-		if(!res.is<lisp::nil>()) {
+		if(res != lisp::null) {
 		  std::cout << res << std::endl;
 		}
 	  }

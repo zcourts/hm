@@ -15,16 +15,15 @@ namespace lisp {
   static error unimplemented("unimplemented");
 
   // special forms
-  typedef vec<value>::iterator list_iterator;
-  using special_form = value (*) (environment env, list_iterator arg, list_iterator end);
+  using special_form = value (*) (environment env, list args);
   
-  static value eval_define(environment env, list_iterator arg, list_iterator end);
-  static value eval_lambda(environment env, list_iterator arg, list_iterator end);
-  static value eval_quote(environment env, list_iterator arg, list_iterator end);
-  static value eval_cond(environment env, list_iterator arg, list_iterator end);
-  static value eval_begin(environment env, list_iterator arg, list_iterator end);
-  static value eval_set(environment env, list_iterator arg, list_iterator end);
-  static value eval_defmacro(environment env, list_iterator arg, list_iterator end);
+  static value eval_define(environment env, list args);
+  static value eval_lambda(environment env, list args);
+  static value eval_quote(environment env, list args);
+  static value eval_cond(environment env, list args);
+  static value eval_begin(environment env, list args);
+  static value eval_set(environment env, list args);
+  static value eval_defmacro(environment env, list args);
   
   // TODO import ?
 
@@ -61,26 +60,22 @@ namespace lisp {
 	
 	// lambda application
 	template<class Iterator>
-	inline value operator()(const lambda& self, environment, Iterator arg, Iterator end) const {
-	  const unsigned argc = end - arg;
+	inline value operator()(const lambda& self, environment env, Iterator arg, Iterator end) const {
+	
+	  environment sub = std::make_shared<environment_type>(env);
 
-	  // TODO expected/got
-	  if(self->vararg && argc < self->args.size() ) {
-		throw error("bad argument count");
+	  // argument names
+	  auto name = self->args.begin(), name_end = self->args.end();	  
+	  for(; name != name_end && arg != end; ++name, ++arg) {
+		sub->insert( {*name, *arg} );
 	  }
 	  
-	  if(!self->vararg && argc != self->args.size() ) {
-		throw error("bad argument count");
-	  }
-
-	  
-	  // augment captured context with args
-	  environment sub = self->env->augment(self->args.begin(), self->args.end(),
-										   arg, arg + self->args.size());
+	  if( arg == end && name != name_end ) throw error("not enough args");
+	  if( name == name_end && arg != end && !self->vararg ) throw error("too many args");
 	  
 	  // varargs
 	  if( self->vararg ) {
-		(*sub)[ *self->vararg ] = std::make_shared<vec<value>>(arg + self->args.size(), end);
+		(*sub)[ *self->vararg ] = make_list(arg, end); // TODO avoid copy if Iterator == list
 	  }
 	  
 	  return eval(sub, self->body);
@@ -111,21 +106,19 @@ namespace lisp {
 	// lists
 	inline value operator()(const list& self, environment env) const {
 	  
-	  if( self->empty() ) {
+	  if( !self ) {
 		throw error("empty list in application");
 	  }
 
-	  const value& head = self->front();
-	  
-	  if( head.is<symbol>() ) {
+	  if( self->head.is<symbol>() ) {
 
-		const symbol& s = head.as<symbol>();
+		const symbol& s = self->head.as<symbol>();
 		
 		// try special forms
 		{
 		  auto it = special.find( s );
 		  if( it != special.end() ) {
-			return it->second(env, self->begin() + 1, self->end());
+			return it->second(env, self->tail);
 		  }
 		}
 
@@ -134,10 +127,8 @@ namespace lisp {
 		  auto it = macro.find( s );
 		  if( it != macro.end() ) {
 
-			// expand macro
-			value& arg = self->begin()[1];
-			const value exp = apply(env, it->second, &arg, &arg + self->size() - 1);
-
+			const value exp = application()(it->second, env, self->tail, (list) nullptr);
+			
 			debug<2>() << "macro:\t" << value(self) << std::endl
 					   << "\t>>\t" << exp << std::endl;
 			
@@ -145,21 +136,24 @@ namespace lisp {
 			return eval(env, exp); 
 		  }
 		}
-	  }
+	  } 
+
+		
 	  
 	  // regular function application
-	  const value func = eval(env, head);
+	  const value func = eval(env, self->head);
 
 	  // TODO make function c-style variadic and simply push values
 	  // onto the stack ?
 
 	  // vla for evaluated args
-	  const unsigned argc = self->size() - 1;
+	  const unsigned argc = length(self) - 1;
+
 	  macro_vla(value, args, argc);
-	  
 	  unsigned i = 0;
-	  for(auto it = self->begin() + 1, end = self->end(); it != end; ++it, ++i) {
-		args.data[i] = eval(env, *it);
+	  for(value& v : self->tail) {
+		args.data[i] = eval(env, v);
+		++i;
 	  }
 	  
 	  return apply(env, func, args.begin(), args.end() );
@@ -202,58 +196,60 @@ namespace lisp {
 
 
   // special forms
-  static value eval_define(environment env, list_iterator arg, list_iterator end) {
+  static value eval_define(environment env, list args) {
 
-	const unsigned argc = end - arg;
+	const unsigned argc = length(args);
 	
 	if( argc != 2 ) {
 	  throw error("bad define syntax");
 	}
-
-	if( !arg->is<symbol>() ) {
+	if( !args->head.is<symbol>() ) {
 	  throw error("symbol expected for variable name");
 	}
 
 	// TODO eval first ?
-	value expr = eval(env, arg[1]);
-	(*env)[ arg->as<symbol>() ] = expr;
+	value expr = eval(env, args->tail->head);
+	(*env)[ args->head.as<symbol>() ] = expr;
 	
-	return nil{};
+	return null;
   }
 
   
-  static value eval_lambda(environment env, list_iterator arg, list_iterator end) {
+  static value eval_lambda(environment env, list args) {
 	static const symbol dot = ".";
 	
-	const unsigned argc = end - arg;
+	const unsigned argc = length(args);
 	
 	if( argc != 2 ) throw error("bad lambda syntax");
 	
-	if( !arg->is<list>() && !arg->is<symbol>() ) {
+	if( !args->head.is<list>() && !args->head.is<symbol>() ) {
 	  throw error("expected variable list or symbol for lambda arguments");
 	}
 	
 	lambda res = shared<lambda_type>();
 	
-	if( arg->is<symbol>() ) {
-	  res->vararg = shared(arg->as<symbol>());
+	if( args->head.is<symbol>() ) {
+	  res->vararg = shared(args->head.as<symbol>());
 	} else {
-	  auto& args = arg->as<list>();
+	  auto& sub = args->head.as<list>();
 
 	  // check args are symbols
-	  for(const auto& a : *args) {
+	  for(const auto& a : sub) {
 		if( !a.is<symbol>() ) throw error("arguments must be symbols");
 	  }
 	  
-	  for(auto it = args->begin(), end = args->end(); it != end; ++it ) {
-		auto& s = it->as<symbol>();
-
+	  for(list it = sub; it; it = it->tail ) {
+		auto& s = it->head.as<symbol>();
+		
 		if( s == dot ) {
 		  // varargs
-		  if( it + 2 != end ) {
+		  list next = it; ++next;
+		  list next2 = next; ++next2;
+		  
+		  if( next2 ) {
 			throw error("vararg must be the last argument");
 		  }
-		  res->vararg = shared( it[1].as<symbol>() );
+		  res->vararg = shared( next->head.as<symbol>() );
 		  break;
 			
 		} else {
@@ -264,7 +260,7 @@ namespace lisp {
 	}
 
 	// body
-	res->body = arg[1];
+	res->body = args->tail->head;
 	
 	// environment
 	res->env = env;
@@ -287,15 +283,14 @@ namespace lisp {
 	}
 
 	value operator()(const sexpr::list& self) const {
-	  list res = shared< vec<value> >();
-	  res->reserve( self.size() );
-	  
-	  std::transform(self.begin(), self.end(),
-					 std::back_inserter(*res), [&](const sexpr::expr& e) {
-					   return e.apply<value>( *this );
-					 });
-	  
-	  return res;
+	  return (*this)(self.begin(), self.end());
+	}
+
+	template<class Iterator>
+	value operator()(Iterator first, Iterator last) const {
+	  if( first == last ) return list(nullptr);
+	  else return std::make_shared<cons>(first->template apply<value>(*this),
+										 (*this)(first + 1, last).template as<list>());
 	}
 	
   };
@@ -307,92 +302,89 @@ namespace lisp {
   
   
   
-  static value eval_quote(environment, list_iterator arg, list_iterator end) {
-	const unsigned argc = end - arg;
-
+  static value eval_quote(environment, list args) {
+	const unsigned argc = length(args);
+	
 	if(argc != 1) {
 	  throw error("bad quote syntax");
 	}
 	
-	return *arg;
+	return args->head;
   }
+  
+  
+  static value eval_cond(environment env, list args) {
 
-
-  static value eval_cond(environment env, list_iterator arg, list_iterator end) {
-	for(auto it = arg; it != end; ++it) {
-	  
-	  if(!it->is<list>() || it->as<list>()->size() != 2) {
+	for(const auto& it : args ) {
+	  if(!it.is<list>() || length(it.as<list>()) != 2 ) {
 		std::stringstream ss;
-		ss << "condition should be a pair: " << *it;
+		ss << "condition should be a pair: " << it;
 		throw error(ss.str());
 	  }
 
-	  const vec<value>& cond = *it->as<list>();
+	  list cond = it.as<list>();
 	  
 	  // TODO handle else during canonicalize
-	  const value res = eval(env, cond[0]);
+	  const value res = eval(env, cond->head);
 	  
 	  // only false evaluates to false
 	  const bool fail = (res.is<bool>() && !res.as<bool>());
 
-	  if(!fail) return eval(env, cond[1]);
+	  if(!fail) return eval(env, cond->tail->head);
 	}
 	
-	return nil{};
+	return null;
   }
 
   
   
-  static value eval_begin(environment env, list_iterator arg, list_iterator end) {
-	value res = nil();
-	for(auto it = arg; it != end; ++it) {
-	  res = eval(env, *it);
-	}
+  static value eval_begin(environment env, list args) {
+	value res = null;
 
+	for(const auto& x: args) {
+	  res = eval(env, x);
+	}
+	
 	return res;
   }
 
   
 
-  static value eval_defmacro(environment env, list_iterator arg, list_iterator end) {
-	const unsigned argc = end - arg;
+  static value eval_defmacro(environment env, list args) {
+	const unsigned argc = length(args);
 	
 	if( argc != 3 ) throw error("bad defmacro syntax");
 
-	if( !arg->is<symbol>() ) throw error("symbol expected for macro name");
+	if( !args->head.is<symbol>() ) throw error("symbol expected for macro name");
 	
-	macro[ arg->as<symbol>() ] = eval_lambda( env, arg + 1, end ).as<lambda>();
+	macro[ args->head.as<symbol>() ] = eval_lambda( env, args->tail ).as<lambda>();
 	
-	return nil();	
+	return null;
   };
 
   
   
-  static value eval_set(environment env, list_iterator arg, list_iterator end) {
-	const unsigned argc = end - arg;
-
+  static value eval_set(environment env, list args) {
+	const unsigned argc = length( args );
+	
 	if( argc != 2 ) throw error("bad set! syntax");
 
-	if( !arg->is<symbol>() ) throw error("variable name expected");
+	if( !args->head.is<symbol>() ) throw error("variable name expected");
 
-	const auto& s = arg->as<symbol>();
+	const auto& s = args->head.as<symbol>();
 	
 	auto& var = env->find(s, [s] {
 		throw error("unknown variable " + std::string(s.name()));
 	  });
 
-	var = eval(env, arg[1]);
-	return nil();
+	var = eval(env, args->tail->head);
+	return null;
   }
 
 
 
   struct stream {
 	
-	void operator()(const nil& , std::ostream& out) const {
-	  out << "nil";
-	}
-
 	template<class T>
 	void operator()(const T& self, std::ostream& out) const {
 	  out << self;
@@ -406,7 +398,7 @@ namespace lisp {
 	   out << '(';
 	
 	  bool first = true;
-	  for(const auto& xi : *self) {
+	  for(const auto& xi : self) {
 		if(!first) {
 		  out << ' ';
 		} else {
@@ -430,11 +422,11 @@ namespace lisp {
 	  out << "#<environment>";
 	  // out << *env;
 	}
-
+	
   };
 
-  
-  std::ostream& operator<<(std::ostream& out, const environment_type& env) {
+	
+	std::ostream& operator<<(std::ostream& out, const environment_type& env) {
 
 	std::function< int( const environment_type& )> fun = [&](const environment_type& env) -> int{
 

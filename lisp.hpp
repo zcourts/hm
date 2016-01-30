@@ -12,10 +12,6 @@ namespace lisp {
   // values
   struct value;
 
-  struct nil {
-	inline bool operator==(const nil&) const { return true;}
-  };
-  
   using boolean = sexpr::boolean;
   using integer = sexpr::integer;
   using real = sexpr::real;
@@ -24,8 +20,9 @@ namespace lisp {
   // TODO boost::intrusive_ptr instead of ref<> and make it 2 words  
   using string = ref<sexpr::string>;
 
-  using list = ref< vec<value> >;
-  
+  struct cons;
+  using list = ref< cons >;
+
   struct lambda_type;
   using lambda = ref<lambda_type>;
   
@@ -37,7 +34,7 @@ namespace lisp {
   struct object_type;
   using object = ref<object_type>;
   
-  struct value : variant<nil, boolean, integer, real, symbol, string, list, lambda, environment, builtin, object> {
+  struct value : variant<boolean, integer, real, symbol, string, list, lambda, environment, builtin, object> {
 	using variant::variant;
 
 	friend std::ostream& operator<<(std::ostream& out, const value& );
@@ -57,13 +54,14 @@ namespace lisp {
   public:
 
 	environment_type(environment parent = nullptr) : parent(parent) { }
-	
+
 	template<class SIterator, class VIterator>
 	environment augment(SIterator sfirst, SIterator slast,
 						VIterator vfirst, VIterator vlast) {
-	  if( slast - sfirst != vlast - vfirst ) {
-		throw error("bad argument count");
-	  }
+	  assert( slast - sfirst == vlast - vfirst );
+	  // if( slast - sfirst != vlast - vfirst ) {
+	  // 	throw error("bad argument count");
+	  // }
 	  
 	  environment res = std::make_shared<environment_type>( shared_from_this() );
 	  
@@ -95,7 +93,8 @@ namespace lisp {
 	}
 
 	using environment_type::map::operator[];
-
+	using environment_type::map::insert;
+	
 	friend std::ostream& operator<<(std::ostream& out, const environment_type& env);
   };
 
@@ -125,6 +124,52 @@ namespace lisp {
 
   // apply expr to (evaluated) args
   value apply(environment env, const value& expr, value* arg, value* end);
+
+
+
+  // lists
+  struct cons {
+	value head;
+	list tail = nullptr;
+
+	cons(const value& head, list tail = nullptr) : head(head), tail(tail) { }
+	
+	
+	// range-based loops
+	friend inline list begin(list x) { return x; }
+	friend inline list end(list ) { return nullptr; }
+	friend inline list& operator++(list& x) { x = x->tail; return x; }
+	friend inline value& operator*(list x) { return x->head; };
+
+	
+	friend unsigned length(list x) {
+	  if( !x ) return 0;
+	  else return 1 + length(x->tail);
+	}
+	
+	friend inline value& at(list x, unsigned n) {
+	  if( !n ) { 
+		assert(x);
+		return x->head;
+	  } else {
+		return at(x, n - 1);
+	  }
+	}
+	
+  };
+
+  template<class Iterator>
+  inline list make_list(Iterator first, Iterator last) {
+	if(first == last) {
+	  return nullptr;
+	} else {
+	  const value& head = *first;
+	  return std::make_shared<cons>(head, make_list(++first, last));
+	}
+  }
+
+
+  static list null = nullptr;
   
 }
 
