@@ -51,7 +51,7 @@ namespace lisp {
 
   
   class environment_type : public std::enable_shared_from_this<environment_type>,
-						   protected std::map<symbol, value> {
+						   protected std::unordered_map<symbol, value> {
 	environment parent;
   public:
 
@@ -75,10 +75,13 @@ namespace lisp {
 	  key_error() : std::runtime_error("key not found") { }
 	};
 
+	typedef environment_type::unordered_map base;
+
+	// TODO rename 
 	template<class Fail>
 	inline mapped_type& find(key_type key, Fail&& fail = {} ) {
 	  
-	  auto it = environment_type::map::find(key);
+	  auto it = base::find(key);
 	  if( it != end() ) {
 		return it->second;
 	  }
@@ -91,8 +94,10 @@ namespace lisp {
 	  return parent->find(key, std::forward<Fail>(fail));
 	}
 
-	using environment_type::map::operator[];
-	using environment_type::map::insert;
+
+	
+	using environment_type::base::operator[];
+	using environment_type::base::insert;
 	
 	friend std::ostream& operator<<(std::ostream& out, const environment_type& env);
   };
