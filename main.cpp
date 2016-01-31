@@ -254,20 +254,25 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "get-attr" ] = +[](environment&, value* arg, value* end) -> value {
+	(*env)[ "object-attr" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
-	  expect_argc(argc, 2);
-
+	  if( argc != 2 && argc != 3) throw error("bad arg count, expected 2, 3");
+	  
 	  object& obj = expect_type<object>( arg[0] );
 	  symbol& attr = expect_type<symbol>( arg[1]);
 
 	  auto it = obj->find( attr );
-	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	  if( it == obj->end() ) {
+		if( argc == 3 ) throw error( *expect_type<string>(arg[2]) );
+		throw error(std::string("attribute error: ") + attr.name() );
+	  }
 	  return it->second;
 	};
 
 	
-	(*env)[ "set-attr!" ] = +[](environment&, value* arg, value* end) -> value {
+
+	
+	(*env)[ "object-attr!" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 3);
 	  
@@ -280,7 +285,7 @@ struct lisp_handler {
 	  return null;
 	};
 	
-	(*env)[ "make-attr!" ] = +[]( environment&, value* arg, value* end) -> value {
+	(*env)[ "object-make-attr!" ] = +[]( environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 3);
 	  
@@ -392,6 +397,16 @@ struct lisp_handler {
 	  return *expect_type<string>(arg[0]) == *expect_type<string>(arg[1]);
 	};
 
+
+	(*env)[ "to-string" ] = +[]( environment&, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 1);
+
+	  std::stringstream ss;
+	  ss << arg[0];
+	  
+	  return shared<std::string>(ss.str());
+	};
 	
 	// (*env)[ "make-env" ] = +[](environment, value* first, value* last) -> value {
 	//   const unsigned argc = last - first;

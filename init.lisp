@@ -69,22 +69,25 @@
 (defmacro class (name args . funcs)
   (do
     
-    (defn make-instantiate-from (tc)
+    (defn make-instantiate-from (tc error-message)
       ;; obtain instance from arg list (first arg)
       (lambda (args)
-              (get-attr tc (type (car args)))))
+              (object-attr tc (type (car args)) error-message)))
     
-    (defn make-late-func (name)
+    (defn make-late-func (f)
       ;; typeclass -> wrapped function
       (lambda (tc)
               (do
-                (def instanciate-from (make-instantiate-from tc))
+
+                (def type-error (string-append "first argument must be an instance of " (to-string name)))
+                (def instantiate-from (make-instantiate-from tc type-error))
+                (def func-error (string-append "instance does not implement " (to-string f)))
                 (lambda args
                         (do 
-                          (def tc (instanciate-from args))
-                          (def overload (get-attr tc name))
+                          (def instance (instantiate-from args))
+                          (def overload (object-attr instance f func-error))
                           (apply overload args))))))
-
+    
     (def func-defs (list-map funcs (lambda (x)
                                  (do
                                    (def func-name (car x))
@@ -106,13 +109,13 @@
 (defmacro instance (c t . body)
   (do
     
-    (def instance-def `(make-attr! ,c (quote ,t) (object 'instance)))
+    (def instance-def `(object-make-attr! ,c (quote ,t) (object 'instance)))
     
     (def func-defs (list-map body (lambda (x)
                                      (do
                                        (def name (car x))
                                        (def fun (cadr x))
-                                       `(make-attr! (get-attr ,c (quote ,t)) (quote ,name) ,fun)))))
+                                       `(object-make-attr! (object-attr ,c (quote ,t)) (quote ,name) ,fun)))))
     (list-append (list 'do instance-def) func-defs)))
 
 
@@ -146,6 +149,8 @@
 (class Eq a
        (= a a))
 
+(defn != (a b) (not (= a b)))
+
 (instance Eq int
           (= number=?))
 
@@ -154,4 +159,14 @@
 
 (instance Eq string
           (= string=?))
+
+(class Show a
+       (show a))
+
+(instance Show int (show to-string))
+(instance Show real (show to-string))
+(instance Show bool (show to-string))
+(instance Show string (show to-string))
+(instance Show list (show to-string))
+(instance Show symbol (show to-string))
 
