@@ -3,7 +3,7 @@
 
 #include <memory>
 #include <vector>
-#include <functional>
+
 
 class symbol {
   const char* string = nullptr;
@@ -25,9 +25,9 @@ public:
 template<class T>
 using ref = std::shared_ptr<T>;
 
-template<class T>
-static ref<T> shared(const T& x = {}) {
-  return std::make_shared<T>(x);
+template<class T, class ... Args>
+static inline ref<T> shared(Args&& ... x) {
+  return std::make_shared<T>( std::forward<Args>(x)...);
 }
 
 template<class T>
@@ -41,9 +41,8 @@ namespace std {
   template<>
   struct hash< symbol > {
 
-	inline std::size_t operator()(const symbol& s) const {
-	  return std::hash<const char*>{}(s.name());
-	}
+	std::size_t operator()(const symbol& s) const;
+	
   };
 }
 

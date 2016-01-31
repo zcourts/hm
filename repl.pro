@@ -6,7 +6,12 @@ CONFIG += warn_on
 
 # CONFIG += link_pkgconfig
 
-SOURCES = common.cpp sexpr.cpp ast.cpp type.cpp parse.cpp syntax.cpp hindley_milner.cpp main.cpp lisp.cpp repl.cpp
+SOURCES = common.cpp sexpr.cpp  \
+		ast.cpp type.cpp  syntax.cpp hindley_milner.cpp \
+		parse.cpp repl.cpp \
+		lisp.cpp \
+		main.cpp
+
 LIBS += -lreadline -lboost_program_options -lstdc++
 
 release {

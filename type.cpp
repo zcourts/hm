@@ -44,7 +44,8 @@ namespace type {
 
 	  // add stuff to context
 	  for(unsigned i = 0, n = self.args.size(); i < n; ++i) {
-		context[self.args[i]] = context.size();
+		const unsigned pos = context.size();
+		context[self.args[i]] = pos;
 	  }
 
 	  self.body.apply(*this, out);

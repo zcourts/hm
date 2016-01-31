@@ -128,7 +128,7 @@ namespace type {
   // easy function types (right-associative)
   static inline app operator>>=(const mono& lhs, const mono& rhs) {
 	app_type res = { func, {lhs, rhs} };
-	return shared(res);
+	return shared<app_type>( std::move(res) );
   }
   
 }

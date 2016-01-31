@@ -1,28 +1,11 @@
 
 #include <iostream>
 
-#include <vector>
-#include <map>
-#include <set>
-#include <memory>
-
-#include "variant.hpp"
-
-#include "common.hpp"
-#include "variant.hpp"
-
-#include "sexpr.hpp"
-#include "ast.hpp"
-#include "type.hpp"
-
-#include "parse.hpp"
-#include "syntax.hpp"
 #include "hindley_milner.hpp"
-
-#include <sstream>
-
 #include "repl.hpp"
 #include "lisp.hpp"
+#include "parse.hpp"
+#include "syntax.hpp"
 
 #include <fstream>
 #include <boost/program_options.hpp>
@@ -173,7 +156,7 @@ struct lisp_handler {
 	using namespace lisp;
 
 
-	(*env)[ "echo" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "echo" ] = +[](environment&, value* arg, value* end) -> value {
 	  for(value* it = arg; it != end; ++it) {
 		std::cout << (it == arg ? "" : " ") << *it;
 	  }
@@ -182,7 +165,7 @@ struct lisp_handler {
 	};
 
 
-	(*env)[ "error" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "error" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  if( !argc ) throw error("argc == 0");
 	  
@@ -197,7 +180,7 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "eq?" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "eq?" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  if(argc < 2) throw error("argc < 2");
 
@@ -211,42 +194,42 @@ struct lisp_handler {
 	};
 	
 	
-	(*env)[ "list?" ] = +[](environment, value* arg, value* last) -> value {
+	(*env)[ "list?" ] = +[](environment&, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  expect_argc(argc, 1);
 
 	  return arg[0].is<list>();
 	};
 
-	(*env)[ "null?" ] = +[](environment, value* arg, value* last) -> value {
+	(*env)[ "null?" ] = +[](environment&, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  expect_argc(argc, 1);
 
 	  return arg[0] == null;
 	};
 
-	(*env)["cons"] = +[](environment, value* arg, value* last) -> value {
+	(*env)["cons"] = +[](environment&, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  expect_argc(argc, 2);
 	  
 	  return std::make_shared<cons>(arg[0], expect_type<list>(arg[1]));
 	};
 
-	(*env)["car"] = +[](environment, value* arg, value* last) -> value {
+	(*env)["car"] = +[]( environment&, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  expect_argc(argc, 1);
 	  
 	  return expect_type<list>(arg[0])->head;
 	};
 
-	(*env)["cdr"] = +[](environment, value* arg, value* last) -> value {
+	(*env)["cdr"] = +[](environment&, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  expect_argc(argc, 1);
 	  
 	  return expect_type<list>(arg[0])->tail;
 	};
 
-	(*env)["apply"] = +[](environment env, value* arg, value* end) -> value {
+	(*env)["apply"] = +[](environment& env, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 2);
 
@@ -264,14 +247,14 @@ struct lisp_handler {
 	
 
 	
-	(*env)[ "type" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "type" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 1);
 	  return arg->apply<value>( lisp::type() );
 	};
 
 	
-	(*env)[ "get-attr" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "get-attr" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 2);
 
@@ -284,7 +267,7 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "set-attr!" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "set-attr!" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 3);
 	  
@@ -297,7 +280,7 @@ struct lisp_handler {
 	  return null;
 	};
 	
-	(*env)[ "make-attr!" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "make-attr!" ] = +[]( environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 3);
 	  
@@ -310,7 +293,7 @@ struct lisp_handler {
 	};	
 	
 	
-	(*env) [ "object" ] = +[](environment, value* arg, value* end) -> value {
+	(*env) [ "object" ] = +[]( environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 1);
 
@@ -322,7 +305,7 @@ struct lisp_handler {
 
 
 
-	(*env)["symbol-append"] = +[](environment, value* arg, value* end) -> value {
+	(*env)["symbol-append"] = +[]( environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 2);
 	  
@@ -335,7 +318,7 @@ struct lisp_handler {
 	
 	
 	
-	(*env) ["number-add"] = +[](environment, value* first, value* last) -> value {
+	(*env) ["number-add"] = +[]( environment&, value* first, value* last) -> value {
 	  const unsigned argc = last - first;
 	  if(!argc) throw error("1+ args expected");
 		
@@ -349,7 +332,7 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "number-mult" ] = +[](environment, value* first, value* last) -> value {
+	(*env)[ "number-mult" ] = +[]( environment&, value* first, value* last) -> value {
 	  const unsigned argc = last - first;
 	  if(!argc) throw error("1+ args expected");
 		
@@ -363,7 +346,7 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "number=?" ] = +[](environment, value* first, value* last) -> value {
+	(*env)[ "number=?" ] = +[]( environment&, value* first, value* last) -> value {
 	  const unsigned argc = last - first;
 	  if(argc < 2) throw error("2+ args expected");
 	  
@@ -377,7 +360,7 @@ struct lisp_handler {
 	};	
 
 	
-	(*env)[ "number-sub" ] = +[](environment, value* first, value* last ) -> value {
+	(*env)[ "number-sub" ] = +[]( environment&, value* first, value* last ) -> value {
 	  const unsigned argc = last - first;
 	  if(!argc) throw error("1+ args expected");
 		
@@ -394,14 +377,15 @@ struct lisp_handler {
 	};
 
 
-	(*env)[ "string-append" ] = +[](environment, value* arg, value* end) -> value {
+	(*env)[ "string-append" ] = +[]( environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 2);
 
 	  return shared<std::string>( *expect_type<string>(arg[0]) + *expect_type<string>(arg[1]));
 	};
 
-	(*env)[ "string=?" ] = +[](environment, value* arg, value* end) -> value {
+	
+	(*env)[ "string=?" ] = +[]( environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 2);
 
@@ -417,7 +401,7 @@ struct lisp_handler {
 	// };
 
 	
-	(*env)[ "env" ] = +[](environment env, value* , value* ) -> value {
+	(*env)[ "env" ] = +[]( environment& env, value* , value* ) -> value {
 	  return env;
 	};
 
@@ -687,6 +671,7 @@ int main(int argc, const char* argv[] ) {
 	parser( file );
 	
   } else {
+
 	repl::loop( parser );
   }
   

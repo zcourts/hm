@@ -7,8 +7,6 @@
 #include <boost/phoenix/object/construct.hpp>
 #include <boost/phoenix/bind/bind_function.hpp>
 
-// TODO symbol.hpp
-#include <set>
 
 template<class Iterator>
 static std::string error_report(Iterator first, Iterator last, Iterator err) {

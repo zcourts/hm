@@ -13,7 +13,7 @@
 
 
 static struct {
-  std::string abs = "fn";
+  std::string abs = "lambda";
   std::string let = "let";
   std::string def = "def";
   std::string data = "data";
@@ -98,7 +98,7 @@ struct match_expr {
 	}
 
 	vec<ast::expr> args(terms.begin() + 1, terms.end());
-	return ast::app{ shared(terms[0]), args };
+	return ast::app{ shared<ast::expr>(terms[0]), args };
   }
 
 
@@ -119,10 +119,10 @@ static ast::expr transform_let(const sexpr::list& e) {
   res.id = transform_var(e[1]);
 
   // definition
-  res.value = shared( transform_expr(e[2]));
+  res.value = shared<ast::expr>( transform_expr(e[2]));
 
   // body
-  res.body = shared( transform_expr(e[3]));
+  res.body = shared<ast::expr>( transform_expr(e[3]));
   
   return res;
 }
@@ -151,7 +151,7 @@ static ast::expr transform_abs(const sexpr::list& e) {
   }
   
   // body
-  res.body = shared(transform_expr(e[2]));
+  res.body = shared<ast::expr>(transform_expr(e[2]));
   
   return res;
 }
@@ -172,7 +172,7 @@ static ast::def transform_def(const sexpr::list& list) {
   ast::def res;
 
   res.id = transform_var( list[1] );
-  res.value = shared( transform_expr( list[2] ) );
+  res.value = shared<ast::expr>( transform_expr( list[2] ) );
 
   return res;
 }

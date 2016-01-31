@@ -362,7 +362,6 @@ public:
   // static type switch from a function object f: (const T&, Args&&...) -> Ret
   template<class Ret = void, class F, class ... Args>
   inline Ret apply(const F& f, Args&& ... args ) const {
-
 	if( !valid() ) throw error();
 
 	static apply_const_type<Ret, F, Args...> app[] = { &variant::apply_const_thunk<Types>... };

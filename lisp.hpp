@@ -30,7 +30,7 @@ namespace lisp {
   class environment_type;
   using environment = ref<environment_type>;
 
-  using builtin = value (*)(environment env, value* first, value* last);
+  using builtin = value (*)(environment& env, value* first, value* last);
 
   struct object_type;
   using object = ref<object_type>;
@@ -61,9 +61,6 @@ namespace lisp {
 	environment augment(SIterator sfirst, SIterator slast,
 						VIterator vfirst, VIterator vlast) {
 	  assert( slast - sfirst == vlast - vfirst );
-	  // if( slast - sfirst != vlast - vfirst ) {
-	  // 	throw error("bad argument count");
-	  // }
 	  
 	  environment res = std::make_shared<environment_type>( shared_from_this() );
 	  
@@ -114,8 +111,7 @@ namespace lisp {
   // testing stuff
   struct object_type : std::unordered_map< symbol, value > {
 	symbol type;
-	object_type(symbol type = "object", std::initializer_list<value_type> list = {})
-	  : unordered_map(list), type(type) { }	
+	object_type(symbol type = "object", std::initializer_list<value_type> list = {});
   };
 
   
@@ -123,10 +119,10 @@ namespace lisp {
   value convert(const sexpr::expr& expr);
   
   // evaluate expression
-  value eval(environment env, const value& expr);
+  value eval(environment& env, const value& expr);
 
   // apply expr to (evaluated) args
-  value apply(environment env, const value& expr, value* arg, value* end);
+  value apply(environment& env, const value& expr, value* arg, value* end);
 
 
 
@@ -137,7 +133,6 @@ namespace lisp {
 
 	cons(const value& head, list tail = nullptr) : head(head), tail(tail) { }
 	
-	
 	// range-based loops
 	friend inline list begin(list x) { return x; }
 	friend inline list end(list ) { return nullptr; }
@@ -145,7 +140,7 @@ namespace lisp {
 	friend inline value& operator*(list x) { return x->head; };
 
 	
-	friend unsigned length(list x) {
+	friend inline unsigned length(list x) {
 	  if( !x ) return 0;
 	  else return 1 + length(x->tail);
 	}

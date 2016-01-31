@@ -131,12 +131,17 @@
 (class Sum a
        (+ a a))
 
+(class Diff a
+       (- a a))
+
 (instance Sum int (+ number-add))
 (instance Sum real (+ number-add))
 (instance Sum string (+ string-append))
 (instance Sum symbol (+ symbol-append))
 (instance Sum list (+ list-append))
 
+(instance Diff int (- number-sub))
+(instance Diff real (- number-sub))
 
 (class Eq a
        (= a a))
@@ -150,5 +155,3 @@
 (instance Eq string
           (= string=?))
 
-
-(echo "lisp interpreter started")

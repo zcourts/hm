@@ -4,10 +4,7 @@
 #include <algorithm>
 #include <sstream>
 
-#include "debug.hpp"
-
-// debug
-#include <iostream>
+// #include "debug.hpp"
 
 namespace lisp {
 
@@ -15,15 +12,15 @@ namespace lisp {
   static error unimplemented("unimplemented");
 
   // special forms
-  using special_form = value (*) (environment env, list args);
+  using special_form = value (*) (environment& env, const list& args);
   
-  static value eval_define(environment env, list args);
-  static value eval_lambda(environment env, list args);
-  static value eval_quote(environment env, list args);
-  static value eval_cond(environment env, list args);
-  static value eval_begin(environment env, list args);
-  static value eval_set(environment env, list args);
-  static value eval_defmacro(environment env, list args);
+  static value eval_define(environment& env, const list& args);
+  static value eval_lambda(environment& env, const list& args);
+  static value eval_quote(environment& env, const list& args);
+  static value eval_cond(environment& env, const list& args);
+  static value eval_begin(environment& env, const list& args);
+  static value eval_set(environment& env, const list& args);
+  static value eval_defmacro(environment& env, const list& args);
   
   // TODO import ?
 
@@ -35,9 +32,6 @@ namespace lisp {
 	symbol cond = "cond";
 	symbol set = "set!";
 	symbol defmacro = "defmacro";
-
-	// symbol unquote = "unquote";	
-	// symbol quasiquote = "quasiquote";
   } keyword;
 
   
@@ -57,30 +51,39 @@ namespace lisp {
 
   
   struct application {
+
+	static const list& to_list(const list& start, const list& ) { return start; }
+
+	template<class Iterator>
+	static list to_list(Iterator start, Iterator end) {
+	  return make_list(start, end);
+	}
 	
 	// lambda application
 	template<class Iterator>
-	inline value operator()(const lambda& self, environment env, Iterator arg, Iterator end) const {
+	inline value operator()(const lambda& self, environment&, Iterator arg, Iterator end) const {
 	
-	  environment sub = std::make_shared<environment_type>(self->env);
+	  environment sub = shared<environment_type>(self->env);
 
 	  // argument names
 	  auto name = self->args.begin(), name_end = self->args.end();	  
 	  for(; name != name_end && arg != end; ++name, ++arg) {
 		sub->insert( {*name, *arg} );
 	  }
+
 	  
-	  if( arg == end && name != name_end ) throw error("not enough args");
-	  if( name == name_end && arg != end && !self->vararg ) {
-		error e("too many args");
+	  if( (arg == end && name != name_end) || (name == name_end && arg != end && !self->vararg) ) {
+		error e("bad argument count");
 		std::stringstream ss;
 		ss << "expected: " << self->args.size() << (self->vararg ? "+" : "") << std::endl;
 		e.details = ss.str();
+		throw e;
+
 	  }
 	  
 	  // varargs
 	  if( self->vararg ) {
-		(*sub)[ *self->vararg ] = make_list(arg, end); // TODO avoid copy if Iterator == list
+		(*sub)[ *self->vararg ] = to_list(arg, end); 
 	  }
 	  
 	  return eval(sub, self->body);
@@ -89,7 +92,7 @@ namespace lisp {
 
 	// builtin application
 	template<class Iterator>
-	inline value operator()(const builtin& self, environment env, Iterator arg, Iterator end) const {
+	inline value operator()(const builtin& self, environment& env, Iterator arg, Iterator end) const {
 
 	  // call builtin 
 	  return self(env, arg, end);
@@ -97,7 +100,7 @@ namespace lisp {
 	
 
 	template<class T, class Iterator>
-	value operator()(const T& , environment , Iterator, Iterator ) const {
+	value operator()(const T& , environment& , Iterator, Iterator ) const {
 	  std::stringstream ss;
 	  ss << "invalid type in application: " << typeid(T).name();
 	  throw error(ss.str());
@@ -109,15 +112,15 @@ namespace lisp {
   struct evaluate {
 
 	// lists
-	inline value operator()(const list& self, environment env) const {
+	inline value operator()(const list& self, environment& env) const {
 	  
-	  if( !self ) {
-		throw error("empty list in application");
-	  }
+	  if( !self ) throw error("empty list in application");
+	  
+	  const value& head = self->head;
 
-	  if( self->head.is<symbol>() ) {
+	  if( head.is<symbol>() ) {
 
-		const symbol& s = self->head.as<symbol>();
+		const symbol& s = head.as<symbol>();
 		
 		// try special forms
 		{
@@ -132,13 +135,13 @@ namespace lisp {
 		  auto it = macro.find( s );
 		  if( it != macro.end() ) {
 
-			const value exp = application()(it->second, env, self->tail, null);
+			const value expand = application()(it->second, env, self->tail, null);
 			
-			debug<2>() << "macro:\t" << value(self) << std::endl
-					   << "\t>>\t" << exp << std::endl;
+			// debug<2>() << "macro:\t" << value(self) << std::endl
+			// 		   << "\t>>\t" << exp << std::endl;
 			
 			// evaluate result
-			return eval(env, exp); 
+			return eval(env, expand); 
 		  }
 		}
 	  } 
@@ -152,7 +155,7 @@ namespace lisp {
 	  // onto the stack ?
 
 	  // vla for evaluated args
-	  const unsigned argc = length(self) - 1;
+	  const unsigned argc = length(self->tail);
 
 	  macro_vla(value, args, argc);
 	  unsigned i = 0;
@@ -166,7 +169,7 @@ namespace lisp {
 
 	
 	// variables
-	inline value operator()(const symbol& self, environment env) const {
+	inline value operator()(const symbol& self, environment& env) const {
 
 	  return env->find( self, [&] {
 		  throw error("unknown variable: " + std::string(self.name()) );
@@ -177,7 +180,7 @@ namespace lisp {
 	
 	// all the rest is returned as is
 	template<class T>
-	inline value operator()(const T& self, environment ) const {
+	inline value operator()(const T& self, environment& ) const {
 	  return self;
 	}
 	
@@ -185,7 +188,7 @@ namespace lisp {
   
 
   // eval
-  value eval(environment env, const value& expr) {
+  value eval(environment& env, const value& expr) {
 	try { 
 	  return expr.apply<value>(evaluate(), env);
 	} catch( error& e ) {
@@ -197,17 +200,12 @@ namespace lisp {
   }
 
   
-  value apply(environment env, const value& expr, value* arg, value* end) {
+  value apply(environment& env, const value& expr, value* arg, value* end) {
 	return expr.apply<value>(application(), env, arg, end);
   }
-
-  // value apply(environment env, const value& expr, list args) {
-  // 	return expr.apply<value>(application(), env, args, null);
-  // }
   
-
   // special forms
-  static value eval_define(environment env, list args) {
+  static value eval_define(environment& env, const list& args) {
 
 	const unsigned argc = length(args);
 	
@@ -226,7 +224,7 @@ namespace lisp {
   }
 
   
-  static value eval_lambda(environment env, list args) {
+  static value eval_lambda(environment& env, const list& args) {
 	static const symbol dot = ".";
 	
 	const unsigned argc = length(args);
@@ -240,7 +238,7 @@ namespace lisp {
 	lambda res = shared<lambda_type>();
 	
 	if( args->head.is<symbol>() ) {
-	  res->vararg = shared(args->head.as<symbol>());
+	  res->vararg = shared<symbol>(args->head.as<symbol>());
 	} else {
 	  auto& sub = args->head.as<list>();
 
@@ -260,7 +258,7 @@ namespace lisp {
 		  if( next2 ) {
 			throw error("vararg must be the last argument");
 		  }
-		  res->vararg = shared( next->head.as<symbol>() );
+		  res->vararg = shared<symbol>( next->head.as<symbol>() );
 		  break;
 			
 		} else {
@@ -290,7 +288,7 @@ namespace lisp {
 	}
 
 	value operator()(const std::string& self) const {
-	  return shared(self);
+	  return shared<std::string>(self);
 	}
 
 	value operator()(const sexpr::list& self) const {
@@ -300,8 +298,8 @@ namespace lisp {
 	template<class Iterator>
 	value operator()(Iterator first, Iterator last) const {
 	  if( first == last ) return list(nullptr);
-	  else return std::make_shared<cons>(first->template apply<value>(*this),
-										 (*this)(first + 1, last).template as<list>());
+	  else return shared<cons>(first->template apply<value>(*this),
+							   (*this)(first + 1, last).template as<list>());
 	}
 	
   };
@@ -313,7 +311,7 @@ namespace lisp {
   
   
   
-  static value eval_quote(environment, list args) {
+  static value eval_quote(environment&, const list& args) {
 	const unsigned argc = length(args);
 	
 	if(argc != 1) {
@@ -324,7 +322,7 @@ namespace lisp {
   }
   
   
-  static value eval_cond(environment env, list args) {
+  static value eval_cond(environment& env, const list& args) {
 
 	for(const auto& it : args ) {
 	  if(!it.is<list>() || length(it.as<list>()) != 2 ) {
@@ -349,7 +347,7 @@ namespace lisp {
 
   
   
-  static value eval_begin(environment env, list args) {
+  static value eval_begin(environment& env, const list& args) {
 	value res = null;
 
 	for(const auto& x: args) {
@@ -361,7 +359,7 @@ namespace lisp {
 
   
 
-  static value eval_defmacro(environment env, list args) {
+  static value eval_defmacro(environment& env, const list& args) {
 	const unsigned argc = length(args);
 	
 	if( argc != 3 ) throw error("bad defmacro syntax");
@@ -375,7 +373,7 @@ namespace lisp {
 
   
   
-  static value eval_set(environment env, list args) {
+  static value eval_set(environment& env, const list& args) {
 	const unsigned argc = length( args );
 	
 	if( argc != 2 ) throw error("bad set! syntax");
@@ -391,21 +389,21 @@ namespace lisp {
 	var = eval(env, args->tail->head);
 	return null;
   }
-
+  
 
 
   struct stream {
 	
 	template<class T>
-	void operator()(const T& self, std::ostream& out) const {
+	inline void operator()(const T& self, std::ostream& out) const {
 	  out << self;
 	}
 	
-	void operator()(const string& self, std::ostream& out) const {
+	inline void operator()(const string& self, std::ostream& out) const {
 	  out << *self;
 	}
 
-	void operator()(const list& self, std::ostream& out) const {
+	inline void operator()(const list& self, std::ostream& out) const {
 	   out << '(';
 	
 	  bool first = true;
@@ -475,7 +473,7 @@ namespace lisp {
   // this keeps gcc linker happy (??)
   lambda_type::lambda_type() { }
 
-  
-
+  object_type::object_type(symbol type, std::initializer_list<value_type> list)
+	: unordered_map(list), type(type) { }	
 }
 
