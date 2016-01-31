@@ -62,7 +62,7 @@ namespace lisp {
 	template<class Iterator>
 	inline value operator()(const lambda& self, environment env, Iterator arg, Iterator end) const {
 	
-	  environment sub = std::make_shared<environment_type>(env);
+	  environment sub = std::make_shared<environment_type>(self->env);
 
 	  // argument names
 	  auto name = self->args.begin(), name_end = self->args.end();	  
@@ -71,7 +71,12 @@ namespace lisp {
 	  }
 	  
 	  if( arg == end && name != name_end ) throw error("not enough args");
-	  if( name == name_end && arg != end && !self->vararg ) throw error("too many args");
+	  if( name == name_end && arg != end && !self->vararg ) {
+		error e("too many args");
+		std::stringstream ss;
+		ss << "expected: " << self->args.size() << (self->vararg ? "+" : "") << std::endl;
+		e.details = ss.str();
+	  }
 	  
 	  // varargs
 	  if( self->vararg ) {
@@ -127,7 +132,7 @@ namespace lisp {
 		  auto it = macro.find( s );
 		  if( it != macro.end() ) {
 
-			const value exp = application()(it->second, env, self->tail, (list) nullptr);
+			const value exp = application()(it->second, env, self->tail, null);
 			
 			debug<2>() << "macro:\t" << value(self) << std::endl
 					   << "\t>>\t" << exp << std::endl;
@@ -184,7 +189,9 @@ namespace lisp {
 	try { 
 	  return expr.apply<value>(evaluate(), env);
 	} catch( error& e ) {
-	  std::cerr << "when evaluating: " << expr << '\n';
+	  std::stringstream ss;
+	  ss << "  ...  " << expr << '\n' << e.details;
+	  e.details = ss.str();
 	  throw e;
 	}
   }
@@ -194,6 +201,10 @@ namespace lisp {
 	return expr.apply<value>(application(), env, arg, end);
   }
 
+  // value apply(environment env, const value& expr, list args) {
+  // 	return expr.apply<value>(application(), env, args, null);
+  // }
+  
 
   // special forms
   static value eval_define(environment env, list args) {
@@ -417,10 +428,14 @@ namespace lisp {
 	void operator()(const builtin&, std::ostream& out ) const {
 	 out << "#<builtin>";
 	}
-  
-	void operator()(const environment& , std::ostream& out ) const {
-	  out << "#<environment>";
-	  // out << *env;
+
+	void operator()(const object& obj, std::ostream& out ) const {
+	  out << "#<" << obj->type << ">";
+	}
+  	
+	void operator()(const environment& env , std::ostream& out ) const {
+	  // out << "#<environment>";
+	  out << *env;
 	}
 	
   };
@@ -460,6 +475,7 @@ namespace lisp {
   // this keeps gcc linker happy (??)
   lambda_type::lambda_type() { }
 
+  
 
 }
 

@@ -6,6 +6,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <initializer_list>
 
 namespace lisp {
 
@@ -45,6 +46,7 @@ namespace lisp {
 
   struct error : std::runtime_error {
 	using std::runtime_error::runtime_error;
+	std::string details;
   };
 
   
@@ -112,7 +114,8 @@ namespace lisp {
   // testing stuff
   struct object_type : std::unordered_map< symbol, value > {
 	symbol type;
-	object_type(symbol type = "object") : type(type) { }
+	object_type(symbol type = "object", std::initializer_list<value_type> list = {})
+	  : unordered_map(list), type(type) { }	
   };
 
   

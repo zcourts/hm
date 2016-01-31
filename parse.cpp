@@ -33,12 +33,13 @@ static std::string error_report(Iterator first, Iterator last, Iterator err) {
 
   std::stringstream ss;
 
-  ss << "on line " << line << " near ";
+  ss << "on line " << line << " near: ";
 
   for(curr = line_start; curr != line_end; ++curr) {
 	ss << *curr;
   }
 
+  ss << std::endl;
   return ss.str();
 }
 

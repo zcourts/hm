@@ -27,7 +27,6 @@
 #include <fstream>
 #include <boost/program_options.hpp>
 
-
 struct sexpr_parser {
   std::function< void (const sexpr::list& prog ) > handler;
 
@@ -173,6 +172,7 @@ struct lisp_handler {
   lisp_handler() {
 	using namespace lisp;
 
+
 	(*env)[ "echo" ] = +[](environment, value* arg, value* end) -> value {
 	  for(value* it = arg; it != end; ++it) {
 		std::cout << (it == arg ? "" : " ") << *it;
@@ -225,7 +225,7 @@ struct lisp_handler {
 	  return arg[0] == null;
 	};
 
-		(*env)["cons"] = +[](environment, value* arg, value* last) -> value {
+	(*env)["cons"] = +[](environment, value* arg, value* last) -> value {
 	  const unsigned argc = last - arg;
 	  expect_argc(argc, 2);
 	  
@@ -244,87 +244,98 @@ struct lisp_handler {
 	  expect_argc(argc, 1);
 	  
 	  return expect_type<list>(arg[0])->tail;
-	};	  
+	};
 
+	(*env)["apply"] = +[](environment env, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
 
-	
-	// (*env)[ "type" ] = +[](environment, value* arg, value* end) -> value {
-	//   const unsigned argc = end - arg;
-	//   if( argc != 1) throw error("argc != 1");
-	//   return arg->apply<value>( lisp::type() );
-	// };
+	  // TODO optimize
+	  vec<value> args;
 
-	
-	// (*env)[ "object-get" ] = +[](environment, value* arg, value* end) -> value {
-	//   const unsigned argc = end - arg;
-	//   expect_argc(argc, 2);
-
-	//   object& obj = expect_type<object>( arg[0] );
-	//   symbol& attr = expect_type<symbol>( arg[1]);
-
-	//   auto it = obj->find( attr );
-	//   if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
-	//   return it->second;
-	// };
-
-	
-	// (*env)[ "object-set!" ] = +[](environment, value* arg, value* end) -> value {
-	//   const unsigned argc = end - arg;
-	//   expect_argc(argc, 3);
+	  for(const auto& v : expect_type<list>(arg[1]) ) {
+		args.push_back(v);
+	  }
 	  
-	//   object& obj = expect_type<object>( arg[0] );
-	//   symbol& attr = expect_type<symbol>( arg[1]);
+	  return apply(env, arg[0], &args.front(), &args.front() + args.size());
+	};
 
-	//   auto it = obj->find( attr );
-	//   if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
-	//   it->second = arg[2];
-	//   return nil();
-	// };
+
 	
-	// (*env)[ "object-add!" ] = +[](environment, value* arg, value* end) -> value {
-	//   const unsigned argc = end - arg;
-	//   expect_argc(argc, 3);
+
+	
+	(*env)[ "type" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 1);
+	  return arg->apply<value>( lisp::type() );
+	};
+
+	
+	(*env)[ "get-attr" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+
+	  object& obj = expect_type<object>( arg[0] );
+	  symbol& attr = expect_type<symbol>( arg[1]);
+
+	  auto it = obj->find( attr );
+	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	  return it->second;
+	};
+
+	
+	(*env)[ "set-attr!" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 3);
 	  
-	//   object& obj = expect_type<object>( arg[0] );
-	//   symbol& attr = expect_type<symbol>( arg[1]);
+	  object& obj = expect_type<object>( arg[0] );
+	  symbol& attr = expect_type<symbol>( arg[1]);
 
-	//   auto it = obj->find( attr );
-	//   if( it != obj->end() ) throw error(std::string("attribute already exists: ") + attr.name() );
-	//   it->second = arg[2];
-	//   return nil();
-	// };	
+	  auto it = obj->find( attr );
+	  if( it == obj->end() ) throw error(std::string("attribute error: ") + attr.name() );
+	  it->second = arg[2];
+	  return null;
+	};
 	
-	
-	// (*env) [ "object" ] = +[](environment, value* arg, value* end) -> value {
-	//   const unsigned argc = end - arg;
-	//   expect_argc(argc, 1);
-
-	//   symbol& type = expect_type<symbol>(arg[0]);
-	//   object res = std::make_shared<object_type>(type);
-
-	//   return res;
-	// };
-
-
-
-	// (*env)["symbol-append"] = +[](environment, value* arg, value* end) -> value {
-	//   const unsigned argc = end - arg;
-	//   expect_argc(argc, 2);
+	(*env)[ "make-attr!" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 3);
 	  
-	//   symbol& lhs = expect_type<symbol>(arg[0]);
-	//   symbol& rhs = expect_type<symbol>(arg[1]);
+	  object& obj = expect_type<object>( arg[0] );
+	  symbol& attr = expect_type<symbol>( arg[1]);
 
-	//   symbol res = std::string(lhs.name()) + std::string(rhs.name());
-	//   return res;
-	// };
+	  auto it = obj->insert( std::make_pair(attr, arg[2] ));
+	  if(!it.second) throw error(std::string("attribute already exists: ") + attr.name() );
+	  return null;
+	};	
 	
 	
+	(*env) [ "object" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 1);
 
-	
+	  symbol& type = expect_type<symbol>(arg[0]);
+	  object res = std::make_shared<object_type>(type);
 
+	  return res;
+	};
+
+
+
+	(*env)["symbol-append"] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+	  
+	  symbol& lhs = expect_type<symbol>(arg[0]);
+	  symbol& rhs = expect_type<symbol>(arg[1]);
+
+	  symbol res = std::string(lhs.name()) + std::string(rhs.name());
+	  return res;
+	};
 	
 	
-	(*env)[ "+" ] = +[](environment, value* first, value* last) -> value {
+	
+	(*env) ["number-add"] = +[](environment, value* first, value* last) -> value {
 	  const unsigned argc = last - first;
 	  if(!argc) throw error("1+ args expected");
 		
@@ -338,7 +349,7 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "*" ] = +[](environment, value* first, value* last) -> value {
+	(*env)[ "number-mult" ] = +[](environment, value* first, value* last) -> value {
 	  const unsigned argc = last - first;
 	  if(!argc) throw error("1+ args expected");
 		
@@ -352,12 +363,12 @@ struct lisp_handler {
 	};
 
 	
-	(*env)[ "=" ] = +[](environment, value* first, value* last) -> value {
+	(*env)[ "number=?" ] = +[](environment, value* first, value* last) -> value {
 	  const unsigned argc = last - first;
 	  if(argc < 2) throw error("2+ args expected");
-
+	  
 	  const real val = first[0].apply<real>(number());
-
+	  
 	  for(value* arg = first + 1; arg != last; ++arg) {
 		if( val != arg->apply<real>(number()) ) return false;
 	  }
@@ -366,7 +377,7 @@ struct lisp_handler {
 	};	
 
 	
-	(*env)[ "-" ] = +[](environment, value* first, value* last ) -> value {
+	(*env)[ "number-sub" ] = +[](environment, value* first, value* last ) -> value {
 	  const unsigned argc = last - first;
 	  if(!argc) throw error("1+ args expected");
 		
@@ -383,6 +394,21 @@ struct lisp_handler {
 	};
 
 
+	(*env)[ "string-append" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+
+	  return shared<std::string>( *expect_type<string>(arg[0]) + *expect_type<string>(arg[1]));
+	};
+
+	(*env)[ "string=?" ] = +[](environment, value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 2);
+
+	  return *expect_type<string>(arg[0]) == *expect_type<string>(arg[1]);
+	};
+
+	
 	// (*env)[ "make-env" ] = +[](environment, value* first, value* last) -> value {
 	//   const unsigned argc = last - first;
 	//   if(argc) throw error("unexpected argument");
@@ -391,9 +417,9 @@ struct lisp_handler {
 	// };
 
 	
-	// (*env)[ "env" ] = +[](environment env, value* , value* ) -> value {
-	//   return env;
-	// };
+	(*env)[ "env" ] = +[](environment env, value* , value* ) -> value {
+	  return env;
+	};
 
 	
 	// (*env)[ "@" ] = +[](environment, value* first, value* last) -> value {
@@ -450,6 +476,7 @@ struct lisp_handler {
 	  
 	} catch( lisp::error& e) {
 	  std::cerr << "evaluation error: " << e.what() << std::endl;
+	  if(!e.details.empty()) std::cerr << e.details << std::flush;
 	}
 	
   }
