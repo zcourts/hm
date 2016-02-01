@@ -206,7 +206,6 @@ class variant {
   template<class Ret, class F, class ... Args>
   using apply_type = Ret (variant::*)(const F&, Args&& ... );
 
-
   // unsafe casts
   template<class T>
   inline T& unsafe() {
@@ -310,14 +309,16 @@ public:
   // cast
   template<class T>
   inline T& as() {
-	if( !is<T>() ) throw error();
-	return unsafe<T>();
+	assert( is<T>() && "cast error" );
+	auto ptr = reinterpret_cast<T*>(data);
+	return *ptr;
   }
 
   template<class T>
   inline const T& as() const {
-	if( !is<T>() ) throw error();
-	return unsafe<T>();
+	assert( is<T>() && "cast error" );	
+	auto ptr = reinterpret_cast<const T*>(data);
+	return *ptr;
   }
 
 

@@ -87,14 +87,17 @@
                           (def instance (instantiate-from args))
                           (def overload (object-attr instance f func-error))
                           (apply overload args))))))
+    (defn make-late-func-closure (f)
+      ;; typeclass -> wrapped function
+      (lambda (tc)
+             (make-overload tc name f)))
     
     (def func-defs (list-map funcs (lambda (x)
                                  (do
                                    (def func-name (car x))
                                    (def func-args (cdr x))
                                    (def overload-name func-name) ;;(symbol-append '~ func-name))
-                                   (def late-func (make-late-func func-name))
-
+                                   (def late-func (make-late-func-closure func-name))
                                    `(def ,overload-name (,late-func ,name)))
                                  )))
 
@@ -105,7 +108,8 @@
     
     (cons 'do defs)))
 
-                                         
+
+;; TODO check that everything is implemented
 (defmacro instance (c t . body)
   (do
     

@@ -420,6 +420,59 @@ struct lisp_handler {
 	  return env;
 	};
 
+
+	(*env)["make-overload"] = +[](environment& , value* arg, value* end) -> value {
+	  const unsigned argc = end - arg;
+	  expect_argc(argc, 3);
+
+	  struct capture_type {
+		object typeclass;
+		symbol typeclass_name;
+		symbol func_name;
+	  };
+
+	  auto capture = shared<capture_type>();
+	  
+	  capture->typeclass = expect_type("class", arg[0]);
+	  capture->typeclass_name = expect_type<symbol>(arg[1]);	  
+	  capture->func_name = expect_type<symbol>(arg[2]);
+	  
+	  auto res = shared<closure_type>();
+
+	  res->data = capture;
+	  res->func = +[](environment& env, void* data, value* arg, value* end) -> value {
+		capture_type* capture = reinterpret_cast<capture_type*>(data);
+		
+		const unsigned argc = end - arg;
+		if( argc < 1 ) throw error("can't infer instance without arguments");
+		
+		auto type = arg[0].apply<symbol>( lisp::type() );
+
+		// TODO try/catch
+		try{
+		  object& instance = expect_type("instance", capture->typeclass->at(type));
+
+		  try{
+			value& overload = instance->at(capture->func_name);
+
+			return apply(env, overload, arg, end);
+		  } catch( std::out_of_range& e) {
+			std::stringstream ss;
+			ss << " instance " << capture->typeclass_name << " " << type << " does not implement " << capture->func_name;
+			throw error(ss.str());
+		  }
+
+		} catch( std::out_of_range& e ) {
+		  std::stringstream ss;
+		  ss << type << " is not an instance of " << capture->typeclass_name;
+		  throw error(ss.str());
+		}
+
+	  };
+
+	  return res;
+	};
+	
 	
 	// (*env)[ "@" ] = +[](environment, value* first, value* last) -> value {
 

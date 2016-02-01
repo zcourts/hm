@@ -32,10 +32,13 @@ namespace lisp {
 
   using builtin = value (*)(environment& env, value* first, value* last);
 
+  struct closure_type;
+  using closure = ref<closure_type>;
+  
   struct object_type;
   using object = ref<object_type>;
   
-  struct value : variant<boolean, integer, real, symbol, string, list, lambda, environment, builtin, object> {
+  struct value : variant<boolean, integer, real, symbol, string, list, lambda, environment, builtin, object, closure> {
 	using variant::variant;
 
 	friend std::ostream& operator<<(std::ostream& out, const value& );
@@ -113,6 +116,11 @@ namespace lisp {
   };
   
 
+  struct closure_type {
+	ref<void> data;
+	value (*func)(environment& env, void* data, value* first, value* last);
+  };
+  
   // testing stuff
   struct object_type : std::unordered_map< symbol, value > {
 	symbol type;

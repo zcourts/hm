@@ -35,7 +35,7 @@ namespace lisp {
   } keyword;
 
   
-  static std::map<symbol, special_form> special = {
+  static std::unordered_map<symbol, special_form> special = {
 	{keyword.define, eval_define},
 	{keyword.lambda, eval_lambda},
 	{keyword.quote, eval_quote},   	
@@ -97,6 +97,17 @@ namespace lisp {
 	  // call builtin 
 	  return self(env, arg, end);
 	}
+
+
+	// closure application
+	template<class Iterator>
+	inline value operator()(const closure& self, environment& env, Iterator arg, Iterator end) const {
+
+	  // call closure func w/ data
+	  return self->func(env, self->data.get(), arg, end);
+	}
+	
+
 	
 
 	template<class T, class Iterator>
@@ -109,6 +120,7 @@ namespace lisp {
   };
 
 
+  
   struct evaluate {
 
 	// lists
@@ -135,18 +147,18 @@ namespace lisp {
 		  auto it = macro.find( s );
 		  if( it != macro.end() ) {
 
-			const value expand = application()(it->second, env, self->tail, null);
+			const value expansion = application()(it->second, env, self->tail, null);
 			
 			// debug<2>() << "macro:\t" << value(self) << std::endl
 			// 		   << "\t>>\t" << exp << std::endl;
 			
 			// evaluate result
-			return eval(env, expand); 
+			return eval(env, expansion);
 		  }
 		}
 	  } 
 
-		
+	  
 	  
 	  // regular function application
 	  const value func = eval(env, self->head);
@@ -311,7 +323,7 @@ namespace lisp {
   
   
   
-  static value eval_quote(environment&, const list& args) {
+  static inline value eval_quote(environment&, const list& args) {
 	const unsigned argc = length(args);
 	
 	if(argc != 1) {
@@ -322,7 +334,7 @@ namespace lisp {
   }
   
   
-  static value eval_cond(environment& env, const list& args) {
+  static inline value eval_cond(environment& env, const list& args) {
 
 	for(const auto& it : args ) {
 	  if(!it.is<list>() || length(it.as<list>()) != 2 ) {
@@ -347,7 +359,7 @@ namespace lisp {
 
   
   
-  static value eval_begin(environment& env, const list& args) {
+  static inline value eval_begin(environment& env, const list& args) {
 	value res = null;
 
 	for(const auto& x: args) {
@@ -359,7 +371,7 @@ namespace lisp {
 
   
 
-  static value eval_defmacro(environment& env, const list& args) {
+  static inline value eval_defmacro(environment& env, const list& args) {
 	const unsigned argc = length(args);
 	
 	if( argc != 3 ) throw error("bad defmacro syntax");
@@ -373,7 +385,7 @@ namespace lisp {
 
   
   
-  static value eval_set(environment& env, const list& args) {
+  static inline value eval_set(environment& env, const list& args) {
 	const unsigned argc = length( args );
 	
 	if( argc != 2 ) throw error("bad set! syntax");
