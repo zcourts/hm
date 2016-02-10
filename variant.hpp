@@ -10,23 +10,7 @@ template<class ... Types> class variant;
 // some helpers
 namespace impl {
   
-  // integral value
-  template<class T, T x> struct value_type {
-	static const T value = x;
-  };
-
-
-  // maximum value of a list of numbers
-  template<class T, T ... I> struct maximum;
-
-  template<class T, T I> struct maximum<T, I> : value_type<T, I> { };
-
-  template<class T, T I, T ... Rest> struct maximum<T, I, Rest...> {
-	static constexpr T sub = maximum<T, Rest...>::value;
-	static constexpr T value = I > sub ? I : sub;
-  };
-
-
+ 
   // type at a given index in a parameter pack
   template<unsigned I, class ... H> struct type_at;
 
@@ -38,7 +22,6 @@ namespace impl {
   struct type_at<I, T, H...> : type_at<I - 1, H...> { };
 
 
-
   // index of type in a variant through constexpr function (ADL):
   // unsigned index = get( index_of<variant_type, type>{} );
 
@@ -46,7 +29,6 @@ namespace impl {
   // functions are first built in a recursive way, but only the actual
   // function call will trigger the error, if any.
 
-  // TODO: can we abstract variant ?
   template<class T, class Variant, int I = 0> struct index_of;
 
   template<class T, class ... Tail, int I >
@@ -60,7 +42,7 @@ namespace impl {
   template<class T, int I>
   struct index_of< T, variant<>, I > {
 
-	template<class U> struct error : value_type<bool, false > { };
+	template<class U> struct error : std::false_type { };
   
 	friend constexpr unsigned get( index_of ) {
 	  static_assert( error<T>::value, "type does not belong to variant");
@@ -72,21 +54,17 @@ namespace impl {
 }
 
 
-// TODO move constructors/assignement
-// TODO safe bool cast
-// TODO remove stream operators ?
 
 template<class ... Types>
 class variant {
 
-  // TODO this should be the size of Types... and checks >=
-  // uninitialized
-  static const unsigned uninitialized = -1;
+  typedef long id_type;
+  static const id_type uninitialized = -1;
   
-  unsigned id = uninitialized;
+  id_type id = uninitialized;
   
-  static constexpr unsigned data_size = impl::maximum<unsigned, sizeof(Types)...>::value;
-  char data[data_size];
+  typedef typename std::aligned_union<0, Types...>::type data_type;
+  data_type data;
 
 
   struct destruct {
@@ -99,34 +77,33 @@ class variant {
   };
 
 
-  // TODO deal with alignment  
   struct construct {
 
 	template<class T>
-	inline void operator()(T& self, const T& other) const {
+	void operator()(T& self, const T& other) const {
 	  new((void*)&self) T(other);
 	}
 
 	template<class T>
-	inline void operator()(T& self, T&& other) const {
+	void operator()(T& self, T&& other) const {
 	  new((void*)&self) T( std::move(other));
 	}
 
 	template<class T>
-	inline void operator()(T& self, const variant& other) const {
+	void operator()(T& self, const variant& other) const {
 	  assert(other.id == type_index<T>());
-	  (*this)(self, other.unsafe<T>() );
+	  (*this)(self, other.as<T>() );
 	}
 
 	template<class T>
-	inline void operator()(T& self, variant&& other) const {
+	void operator()(T& self, variant&& other) const {
 	  assert(other.id == type_index<T>());
-	  (*this)(self, std::move(other.unsafe<T>()) );
+	  (*this)(self, std::move(other.as<T>()) );
 	}
 	
 	
 	template<class T, class U>
-	inline void operator()(T&, U&& ) const {
+	void operator()(T&, U&& ) const {
 	  throw std::logic_error("should never be called");
 	}
 	
@@ -151,15 +128,7 @@ class variant {
 	
   };
 
-  template<class Out>
-  struct ostream {
-
-	template<class T>
-	Out& operator()(const T& self, Out& out) const {
-	  return out << self;
-	}
-	
-  };
+ 
   
 
   struct assign {
@@ -175,213 +144,153 @@ class variant {
 	}
 
 
-	template<class T>
-	void operator()(T& self, const T& other) const {
-	  self = other;
-	}
-
-	template<class T>
-	void operator()(T& self, T&& other) const {
-	  self = std::move( other );
-	}
-	
   };
 
   
+  template<class T, class Self, class Ret, class F, class ...Args>
+  static inline Ret thunk(Self&& self, const F& f, Args&& ... args) {
+	return f( std::forward<Self>(self).template as<T>(), std::forward<Args>(args)... );
+  }
   
-  template<class T, class Ret, class F, class ...Args>
-  inline Ret apply_const_thunk(const F& f, Args&& ... args) const {
-	return f( unsafe<T>(), std::forward<Args>(args)... );
-  }
-
-  template<class T, class Ret, class F, class ...Args>
-  inline Ret apply_thunk(const F& f, Args&& ... args) {
-	return f( unsafe<T>(), std::forward<Args>(args)... );
-  }
-
   
-  template<class Ret, class F, class ... Args>
-  using apply_const_type = Ret (variant::*)(const F&, Args&& ... ) const;
-
-  template<class Ret, class F, class ... Args>
-  using apply_type = Ret (variant::*)(const F&, Args&& ... );
-
-  // unsafe casts
-  template<class T>
-  inline T& unsafe() {
-	auto ptr = reinterpret_cast<T*>(data);
-	return *ptr;
-  }
+ 
+  template<class Ret, class Self, class F, class ... Args>
+  using thunk_type = Ret (*)(Self&& , const F&, Args&& ... );
+  
 
   template<class T>
-  inline const T& unsafe() const {
-	auto ptr = reinterpret_cast<const T*>(data);
-	return *ptr;
-  }
-
-  template<class T>
-  static constexpr unsigned type_index() {
+  static constexpr id_type type_index() {
 	return get( impl::index_of<T, variant>{} );
   }
 
   
   template<class Variant>
-  inline variant& assign_op(Variant&& other) {
-	// different types ?
+  inline variant& assign_impl(Variant&& other) {
 	if( id != other.id ) {
+	  // change types: destruct/construct
+	  
+	  this->~variant();
+	  new (this) variant(std::forward<Variant>(other));
 
-	  // destroy if needed
-	  if( valid() ) {
-		apply( destruct() );
-	  }
-
-	  // destructed, now change type
-	  id = other.id;
-
-	  // construct if needed
-	  if( valid() ) {
-		apply( construct(), std::forward<Variant>(other));
-	  }
-	} else {
-
-	  //  move assign if needed
-	  if( valid() ) {
-		apply( assign(), std::forward<Variant>(other) );
-	  }
-
+	} else if( *this ) {
+	  // assign 
+	  apply( assign(), std::forward<Variant>(other) );
 	}
 
   	return *this;
   }
-  
+
+  template<class Ret = void, class Self, class F, class ... Args>
+  inline static Ret apply_impl(Self&& self, const F& f, Args&& ... args ) {
+	assert( self );
+	
+	static thunk_type<Ret, Self, F, Args...> table[sizeof...(Types)] = { &variant::thunk<Types>... };
+	return table[self.id](std::forward<Self>(self), f, std::forward<Args>(args)...);
+  }
+
+
   
 public:
   
-  // TODO move construct from 
   template<class T>
   variant(const T& other) : id( type_index<T>() ) {
-	apply( construct(), other );
+	construct().template operator()(as<T>(), other);
   }
-
+  
   
   variant(const variant& other) : id(other.id) {
-	if( !valid() ) return;
+	if( !*this ) return;
 
 	apply( construct(), other);
   }
 
   variant(variant&& other) : id(other.id) {
-	if( !valid() ) return;
+	if( !*this ) return;
 
 	apply( construct(), std::move(other));
   }
   
   ~variant() {
-	if( !valid() ) return;
+	if( !*this ) return;
 	apply( destruct() );
   }
-
+  
   variant() : id(uninitialized) { }
 
   struct error : std::runtime_error {
 	error() : std::runtime_error("cast error")  { }
   };
 
-  // TODO move assignement/constructors
   
   variant& operator=(const variant& other) {
-	return assign_op(other);
+	return assign_impl(other);
   }
 
 
   variant& operator=(variant&& other) {
-	return assign_op(std::move(other));
+	return assign_impl(std::move(other));
   }
   
   
   // query
   template<class T>
-  inline bool is() const {
-	static constexpr unsigned type = type_index<T>();
+  bool is() const {
+	static constexpr id_type type = type_index<T>();
 	return id == type;
   };
   
   // cast
   template<class T>
-  inline T& as() {
+  T& as() {
 	assert( is<T>() && "cast error" );
-	auto ptr = reinterpret_cast<T*>(data);
-	return *ptr;
+	return reinterpret_cast<T&>(data);
   }
 
   template<class T>
-  inline const T& as() const {
+  const T& as() const {
 	assert( is<T>() && "cast error" );	
-	auto ptr = reinterpret_cast<const T*>(data);
-	return *ptr;
+	return reinterpret_cast<const T&>(data);
   }
 
-
-  bool valid() const { return id != uninitialized; }
   
-  inline bool operator<(const variant& other) const {
-	// TODO do we want to compare uninitalized values ?
-	
-	if( id < other.id ) return true;
-	if( id != other.id ) return false;
-	if( !valid() ) return false;
-
-	return apply<bool>(compare(), other);
+  bool operator!=(const variant& other) const {
+  	return !(*this == other);
   }
 
-  inline bool operator!=(const variant& other) const {
-	return ! (*this == other);
+
+  template<class Ret = void, class F, class ... Args>
+  inline Ret apply(const F& f, Args&& ... args ) const {
+	return apply_impl<Ret>(*this, f, std::forward<Args>(args)...);
+  }
+
+
+  template<class Ret = void, class F, class ... Args>
+  inline Ret apply(const F& f, Args&& ... args )  {
+	return apply_impl<Ret>(*this, f, std::forward<Args>(args)...);
   }
   
-  inline bool operator==(const variant& other) const {
+  
+  bool operator==(const variant& other) const {
 
 	// TODO do we want to compare uninitalized values ?
 	if( id != other.id ) return false;
-	if( !valid() ) return true;
+	if( !*this ) return true;
 
 	return apply<bool>(equals(), other);
   }
 
-
-  // template<class Out>
-  // friend Out& operator<<(Out& out, const variant& v) {
-
-  // 	if( !v.valid() ) {
-  // 	  return out << "*uninitialized*";
-  // 	} else {
-  // 	  return v.apply<Out&>( ostream<Out>(), out );
-  // 	}
-	
-  // };
-
-
-  // static type switch from a function object f: (const T&, Args&&...) -> Ret
-  template<class Ret = void, class F, class ... Args>
-  inline Ret apply(const F& f, Args&& ... args ) const {
-	if( !valid() ) throw error();
-
-	static apply_const_type<Ret, F, Args...> app[] = { &variant::apply_const_thunk<Types>... };
-	return (this->*app[id])(f, std::forward<Args>(args)...);
+  bool operator<(const variant& other) const {
+    if( id < other.id ) return true;
+    if( id == other.id && apply<bool>(compare(), other)) return true;
+    return false;
   }
 
 
-  // static type switch from a function object f: (T&, Args&&...) -> Ret
-  template<class Ret = void, class F, class ... Args>
-  inline Ret apply(const F& f, Args&& ... args ) {
-	if( !valid() ) throw error();
+  explicit operator bool() const { return id != uninitialized; }
 
-	static apply_type<Ret, F, Args...> app[] = { &variant::apply_thunk<Types>... };
-	return (this->*app[id])(f, std::forward<Args>(args)...);
-  }
-  
- 
-  
 };
 
 
 #endif
+
+

@@ -510,7 +510,7 @@ struct lisp_handler {
 	//   return nil();
 		
 	// };	
-	
+
   }
 
   
@@ -543,6 +543,7 @@ struct hm_handler {
   hm_handler() {
 
 	ctx[ "+" ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ "*" ] = type::mono( type::integer >>= type::integer >>= type::integer);    
 	ctx[ "-" ] = type::mono( type::integer >>= type::integer >>= type::integer);
 	ctx[ "=" ] = type::mono( type::integer >>= type::integer >>= type::boolean);
 
@@ -551,7 +552,15 @@ struct hm_handler {
 	  type::var v;
 	  ctx[ ast::var("if") ] = generalize(ctx, type::boolean >>= v >>= v >>= v);	
 	}
-	
+
+    // fixpoint combinator
+    {
+	  type::var v;
+	  ctx[ ast::var("fix") ] = generalize(ctx, (v >>= v) >>= v);	
+	}
+    
+    
+    
 	// TODO n-ary function
 	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		
 

@@ -110,9 +110,9 @@ namespace type {
 	return out;
   }
 
-  const lit integer = traits<int>::type();
-  const lit boolean = traits<bool>::type();
-  const lit unit = traits<void>::type();
+  const mono integer = traits<int>::type();
+  const mono boolean = traits<bool>::type();
+  const mono unit = traits<void>::type();
 
   static std::map<abs, unsigned> arity_map;
   const abs func = { "->", 2 };

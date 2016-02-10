@@ -23,6 +23,10 @@ namespace ast {
 	T value;
   };
 
+  // fixpoint combinator
+  struct fixpoint;
+
+  template<> struct lit<fixpoint> { };
   template<> struct lit<void> { };
   
   struct var : symbol {
@@ -50,6 +54,7 @@ namespace ast {
   
   // TODO lists
   struct expr : variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
+                         lit<fixpoint>,
 						 var, abs, app, let > {
 	using variant::variant;
   };

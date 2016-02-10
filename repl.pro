@@ -14,9 +14,6 @@ SOURCES = common.cpp sexpr.cpp  \
 
 LIBS += -lreadline -lboost_program_options -lstdc++
 
-release {
-	DEFINES += NDEBUG
-}
 
 # customization
 include(config.pri) {

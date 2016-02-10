@@ -79,47 +79,47 @@ namespace type {
 
   template<> struct traits<int> {
 
-	static type::lit type() {
-	  return {"int"};
+	static type::mono type() {
+	  return lit{"int"};
 	}
   };
 
   template<> struct traits<double> {
 
-	static type::lit type() {
-	  return {"real"};
+	static type::mono type() {
+	  return lit{"real"};
 	}
 	
   };
 
   template<> struct traits<bool> {
 
-	static type::lit type() {
-	  return {"bool"};
+	static type::mono type() {
+	  return lit{"bool"};
 	}
   };
 
   template<> struct traits<std::string> {
 
-	static type::lit type() {
-	  return {"string"};
+	static type::mono type() {
+	  return lit{"string"};
 	}
 	
   };
 
   template<> struct traits<void> {
   
-	static type::lit type() {
-	  return { "unit" };
+	static type::mono type() {
+	  return lit{ "unit" };
 	}
 	
   };
 
 
   // some helpers
-  extern const lit integer;
-  extern const lit boolean;
-  extern const lit unit;
+  extern const mono integer;
+  extern const mono boolean;
+  extern const mono unit;
 
   // function type
   extern const abs func;

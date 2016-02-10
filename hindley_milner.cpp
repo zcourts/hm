@@ -10,6 +10,22 @@
 
 #include "debug.hpp"
 
+// TODO where to put this ?
+namespace type {
+
+  template<>
+  struct traits<ast::fixpoint> {
+    static type::poly type() {
+      static type::var v;
+      static context ctx;
+      static type::poly p = generalize(ctx, (v >>= v) >>= v);
+      return p;
+    }
+  };
+
+}
+
+
 
 // unify monotypes @a and @b in union_find structure @types
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
@@ -396,10 +412,13 @@ struct algorithm_w {
   template<class T>
   type::mono operator()(const ast::lit<T>& , context& ) const {
 	debug_raii _("lit");
-	return type::traits<T>::type();
+    type::poly p = type::traits<T>::type();
+	return p.apply<type::mono>(instantiate());
+    //return type::traits<T>::type();
   }
   
 };
+
 
 
 

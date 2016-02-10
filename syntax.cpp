@@ -60,7 +60,6 @@ struct match_expr {
 	throw std::logic_error("type not implemented: " + std::string( typeid(T).name()) );
   }
   
-
   
   ast::expr operator()(const sexpr::list& self) const {
 
@@ -91,7 +90,7 @@ struct match_expr {
 				   std::back_inserter(terms), transform_expr);
 	
 	// first must be a lambda or a variable
-	if( terms[0].is<ast::abs>() || terms[0].is<ast::var>() ) {
+	if( terms[0].is<ast::abs>() || terms[0].is<ast::var>() || terms[0].is<ast::app>() ) {
 	  // good
 	} else {
 	  throw syntax_error("expected lambda or variable in function application");
@@ -119,7 +118,28 @@ static ast::expr transform_let(const sexpr::list& e) {
   res.id = transform_var(e[1]);
 
   // definition
-  res.value = shared<ast::expr>( transform_expr(e[2]));
+  ast::expr what = transform_expr(e[2]);
+  
+  // recursive functions by default
+  if( what.is<ast::abs>())   {
+    static ast::lit<ast::fixpoint> fix;
+    
+    // (fix (lambda (id) body))
+    ast::app app;
+    app.func = shared<ast::expr>( fix );
+    
+    // (lambda (id) body)
+    ast::abs wrap;
+    wrap.args.push_back(res.id);
+    wrap.body = shared<ast::expr>(what);
+
+    app.args.push_back(wrap);
+    
+    what = app;
+  }
+
+  // definition
+  res.value = shared<ast::expr>( what );
 
   // body
   res.body = shared<ast::expr>( transform_expr(e[3]));

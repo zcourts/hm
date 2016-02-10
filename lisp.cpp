@@ -184,7 +184,7 @@ namespace lisp {
 	inline value operator()(const symbol& self, environment& env) const {
 
 	  return env->find( self, [&] {
-		  throw error("unknown variable: " + std::string(self.name()) );
+		  throw error("unbound variable: " + std::string(self.name()) );
 		});
 
 	}

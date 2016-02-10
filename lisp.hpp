@@ -118,8 +118,24 @@ namespace lisp {
 
   struct closure_type {
 	ref<void> data;
-	value (*func)(environment& env, void* data, value* first, value* last);
+	value (*func)(environment& env, void* data, value* first, value* last) = nullptr;
+
+	closure_type() { };
+
+	template<class F>
+	closure_type(F&& f) {
+
+	  data = std::make_shared<F>(std::forward(f));
+	  func = [](environment& env, void* data, value* first, value* last) {
+		using func_type = typename std::decay<F>::type;
+		return reinterpret_cast< func_type* >(data)->operator()(env, first, last);
+	  };
+	  
+	};
+
   };
+
+  
   
   // testing stuff
   struct object_type : std::unordered_map< symbol, value > {
