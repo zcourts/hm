@@ -711,7 +711,7 @@ struct hm_handler {
 
     {
       type::var a;
-      ctx["[]"] = generalize(ctx, a);
+      ctx["[]"] = generalize(ctx, List(a));
     }
 
     {
