@@ -1,0 +1,21 @@
+
+;; (def x (ref []))
+
+;; ;; (def x (ref 5))
+;; (bind x
+;;       (lambda (x) (set x (+ (get x) 1))))
+
+
+(bind (ref 0) (lambda (x) (return (+ 1 (get x)))))
+
+(let x (ref [])
+     
+     (bind x
+           (lambda (x)
+             (bind (set x (cons 2 (get x)))
+                   (lambda (_)
+                     (bind (set x (cons 4 (get x)))
+                           (lambda (_) (return x))))))))
+
+      
+
