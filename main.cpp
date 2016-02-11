@@ -540,42 +540,18 @@ struct lisp_handler {
 struct hm_handler {
   mutable context ctx;
 
-  hm_handler() {
-
-	ctx[ "+" ] = type::mono( type::integer >>= type::integer >>= type::integer);
-	ctx[ "*" ] = type::mono( type::integer >>= type::integer >>= type::integer);    
-	ctx[ "-" ] = type::mono( type::integer >>= type::integer >>= type::integer);
-	ctx[ "=" ] = type::mono( type::integer >>= type::integer >>= type::boolean);
-
-	// this is just for type inference purpose
-	{
-	  type::var v;
-	  ctx[ ast::var("if") ] = generalize(ctx, type::boolean >>= v >>= v >>= v);	
-	}
-
-    // fixpoint combinator
-    {
-	  type::var v;
-	  ctx[ ast::var("fix") ] = generalize(ctx, (v >>= v) >>= v);	
-	}
-    
-    
-    
-	// TODO n-ary function
-	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		
-
-  }
 
 
 
   struct type_check {
 
-	void operator()(const ast::expr& self, const context& ctx) const {
+    type::poly operator()(const ast::expr& self, const context& ctx) const {
 	  type::poly p = hindley_milner(ctx, self);
 	  std::cout << " :: " << p << std::endl;
+      return p;
 	}
 
-	void operator()(const ast::def& self, context& ctx) const {
+    type::poly operator()(const ast::def& self, context& ctx) const {
 	  // we infer type using: (def x y) => (let x y x)
 	  ast::let tmp = {self.id, self.value, shared<ast::expr>(self.id)};
 	  type::poly p = hindley_milner(ctx, tmp);
@@ -585,11 +561,12 @@ struct hm_handler {
 
 	  // TODO eval
 	  std::cout << self.id << " :: " << p << std::endl;
+      return p;
 	}
 
 
-	// TODO organize this mess
-	void operator()(const ast::data& self, context& ctx) const {
+	// TODO organize this mess ?
+    type::poly operator()(const ast::data& self, context& ctx) const {
 
 	  // out new type
 	  type::poly p;
@@ -664,6 +641,7 @@ struct hm_handler {
 
 	  ctx.insert( delta.begin(), delta.end() );
 	  std::cout << "data " << self.id << std::endl;
+      return p;
 	}
 	
   };
@@ -673,7 +651,7 @@ struct hm_handler {
 	try {
 	  for(const sexpr::expr& s : prog ) {
 		const ast::node e = transform( s );
-		e.apply(type_check(), ctx);
+		e.apply<type::poly>(type_check(), ctx);
 		
 	  }
 	}	
@@ -685,6 +663,71 @@ struct hm_handler {
 	}
 	
   }
+
+
+  hm_handler() {
+
+	ctx[ "+" ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ "*" ] = type::mono( type::integer >>= type::integer >>= type::integer);    
+	ctx[ "-" ] = type::mono( type::integer >>= type::integer >>= type::integer);
+	ctx[ "=" ] = type::mono( type::integer >>= type::integer >>= type::boolean);
+
+	// this is just for type inference purpose
+	{
+	  type::var v;
+	  ctx[ "if" ] = generalize(ctx, type::boolean >>= v >>= v >>= v);
+
+	}
+
+    static type::abs IO("IO", 1);
+    static type::abs Ref("Ref", 1);
+    static type::abs List("List", 1);
+    
+    {
+      type::var a;
+      ctx["return"] = generalize(ctx, a >>= IO(a) );
+    }
+
+
+    {
+      type::var a, b;
+      ctx["bind"] = generalize(ctx, IO(a) >>= (a >>= IO(b)) >>= IO(b) );
+    }
+
+    {
+      type::var a;
+      ctx["get"] = generalize(ctx, Ref(a) >>= a );
+    }
+
+    {
+      type::var a;
+      ctx["set"] = generalize(ctx, Ref(a) >>= a >>= IO(type::unit) );
+    }
+
+    {
+      type::var a;
+      ctx["ref"] = generalize(ctx, a >>= IO(Ref(a)));
+    }
+
+    {
+      type::var a;
+      ctx["[]"] = generalize(ctx, a);
+    }
+
+    {
+      type::var a;
+      ctx["cons"] = generalize(ctx, a >>= List(a) >>= List(a) );
+    }
+    
+    
+    // ctx["get"] = 
+
+    
+	// TODO n-ary function
+	// ctx[ symbolize("=") ] = type::mono( type::integer >> type::integer );		
+
+  }
+
   
 };
 

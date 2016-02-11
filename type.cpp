@@ -88,7 +88,7 @@ namespace type {
 	  if( id != context.end() && ('a' + id->second) < 'z' ) {
 		out << '\'' << (char)('a' + id->second);
 	  } else { 
-		out << "'type-" << self.index;
+		out << "'" << self.index;
 	  }
 	}
 	

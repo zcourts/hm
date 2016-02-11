@@ -75,7 +75,7 @@ struct unification_error : type_error {
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
-  debug<2>() << " unifying: " << a << " with: " << b << std::endl;
+  auto& out = debug<2>() << " unifying: " << a << " with: " << b;
   
   using namespace type;
   
@@ -84,7 +84,8 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
   b = types.find(b);
   
   if( a.is<app>() && b.is<app>() ) {
-
+    out << std::endl;
+    
 	auto& ta = a.as<app>();
 	auto& tb = b.as<app>();
 
@@ -113,11 +114,35 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	};
 	
 	// note: second arg becomes the representative
-	types.link(self, other);
-	
+    out << " (" << types.rank[ a ] << " " << types.rank[b] << ")" ;
+
+    unsigned rself = types.rank[self], rother = types.rank[other];
+
+    // smallest rank goes under the largest, or under the second in
+    // case of equality
+    types.link(self, other);
+
+    // other should be the representative, but if rself > rother it's
+    // not: fix it
+    if( rself > rother ) {
+
+      // fix ranks 
+      types.rank[self] = rself;
+      types.rank[other] = rother + 1;
+
+      // exchange root
+      types.parent[self] = other;
+      types.parent[other] = other;     
+    }
+    
+    out << "\t=> " << types.find(other);
+     
+    
   } else if( a != b ) {
 	throw unification_error(a, b);
   }
+  
+  out << std::endl;
 };
 
 
@@ -282,8 +307,12 @@ struct debug_raii {
 	out << std::endl;
   }
 
+  type::mono type;
+  
   ~debug_raii() {
-	debug<log_level>(-1) << "   " << id << ')' << std::endl;
+	auto& out = debug<log_level>(-1) << "   " << id << ')';
+    if( type ) out << "\t::\t" << type;
+    out << std::endl;                 
   }
 };
 
@@ -295,7 +324,7 @@ struct algorithm_w {
   
   // var
   type::mono operator()(const ast::var& v, context& c) const {
-	debug_raii _("var", v);
+	debug_raii debug("var", v);
 	
 	auto it = c.find(v);
 
@@ -305,14 +334,16 @@ struct algorithm_w {
 	}
 	
 	// instantiate variable polytype stored in context
-	return it->second.apply<type::mono>(instantiate());
+    type::mono res = it->second.apply<type::mono>(instantiate());
+    debug.type = res;
+    return res;
   }
 
 
 
   // app
   type::mono operator()(const ast::app& self, context& c) const {
-	debug_raii _("app");
+	debug_raii debug("app");
 	
 	// infer type for function 
 	type::mono func = self.func->apply<type::mono>(*this, c);
@@ -338,7 +369,8 @@ struct algorithm_w {
 	unify(types, func, app);
 
 	// application has the result type
-	return result;
+	debug.type = result;
+    return result;
   }
 
   
@@ -382,13 +414,16 @@ struct algorithm_w {
   
   // abs
   type::mono operator()(const ast::abs& self, context& c) const {
-	debug_raii _("abs");
-	return abs(self.args.begin(), self.args.end(), self.body, c);
+	debug_raii debug("abs");
+    type::mono res = abs(self.args.begin(), self.args.end(), self.body, c);
+    debug.type = res;
+    return res;
   }
+  
 
   // let
   type::mono operator()(const ast::let& let, context& c) const {
-	debug_raii _("let", let.id);
+	debug_raii debug("let", let.id);
 	
 	// infer type for definition
 	type::mono def = let.value->apply<type::mono>(*this, c);
@@ -404,6 +439,7 @@ struct algorithm_w {
 	// infer type for the body given our assumption
 	type::mono body = let.body->apply<type::mono>(*this, sub);
 
+    debug.type = body;
 	return body;
   }
 
@@ -411,10 +447,11 @@ struct algorithm_w {
   // litterals: constant types
   template<class T>
   type::mono operator()(const ast::lit<T>& , context& ) const {
-	debug_raii _("lit");
+	debug_raii debug("lit");
     type::poly p = type::traits<T>::type();
-	return p.apply<type::mono>(instantiate());
-    //return type::traits<T>::type();
+    type::mono res = p.apply<type::mono>(instantiate());
+    debug.type = res;
+    return res;
   }
   
 };
@@ -434,6 +471,7 @@ type::poly hindley_milner(const context& ctx, const ast::expr& e) {
   // generalize as much as possible given context
   type::poly p = generalize(c, represent(types, t) );
 
+  // std::cout << types << std::endl;
   return p;
 }
 

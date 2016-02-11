@@ -5,7 +5,7 @@
 #include <boost/pending/disjoint_sets.hpp>
 
 template<class T>
-class union_find {
+struct union_find {
   using rank_type =  std::map<T, int>;
 
   struct parent_type : std::map<T, T> {
@@ -53,21 +53,28 @@ public:
 
 	for(const auto& t : self.parent) {
 	  classes[ self.find(t.first) ].push_back(t.first);
+      out << "parent: " << t.first << ": " << t.second << std::endl;
 	}
 
 	for(const auto& c : classes ) {
-	  out << c.first << ":";
+	  out << c.first;
+      
 	  for(const auto& x : c.second) {
-		out << " " << x;
+		if( x != c.first) out << ", " << x;
 	  }
 
 	  out << '\n';
 	}
-									
+
+    for(const auto& t: self.rank) {
+      out << t.first << ": " << t.second << std::endl;
+    }
+
 	return out;
 
   }
 
+  
   
 };
 

@@ -15,7 +15,3 @@ SOURCES = common.cpp sexpr.cpp  \
 LIBS += -lreadline -lboost_program_options -lstdc++
 
 
-# customization
-include(config.pri) {
-	# message('reading config.pri')
-}

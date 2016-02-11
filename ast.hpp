@@ -79,7 +79,7 @@ namespace ast {
 	  vec<var> args;
 	};
 	
-	// list of type constructors
+	// list of type constructors (???)
 	vec< constructor > def;
   };
 

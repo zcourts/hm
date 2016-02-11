@@ -41,6 +41,9 @@ namespace type {
   struct abs : symbol {
 	abs(const char* name, unsigned arity);
 	unsigned arity() const;
+
+    template<class ... Args>
+    app operator()(Args&& ... args) const;
   };
 
   
@@ -130,7 +133,14 @@ namespace type {
 	app_type res = { func, {lhs, rhs} };
 	return shared<app_type>( std::move(res) );
   }
-  
+
+
+  template<class ... Args>
+  app abs::operator()(Args&& ... args) const {
+    vec<type::mono> unpack = {args...};
+    auto res = shared<app_type>(*this, unpack);
+    return res;
+  }
 }
 
 
