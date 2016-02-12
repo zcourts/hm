@@ -1,0 +1,21 @@
+
+;; value restriction issue
+
+;; form a polymorphic reference
+(def x (ref nil))
+
+;; type checking is unsound !
+(set x (cons 1 (get x)))
+(set x (cons true (get x)))
+
+;; x is monomorphized as function argument
+((lambda (x)
+  (do 
+      (set x (cons 1 (get x)))
+      (set x (cons true (get x)))
+    x))(ref nil))
+   
+   
+  
+         
+     

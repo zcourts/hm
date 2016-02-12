@@ -15,8 +15,8 @@ namespace ast {
   struct abs;					// lambda-abstractions
   struct app;					// applications
   struct let;					// local defintions
+  struct seq;                   // sequence of computations
   struct expr;					// expression
-
   
   template<class T>
   struct lit {
@@ -50,12 +50,18 @@ namespace ast {
 	ref<expr> value;
 	ref<expr> body;
   };
+
+  // do we really want an ast node ? or is a lambda enough ?
+  struct seq {
+    vec<expr> exprs;
+  };
   
   
   // TODO lists
   struct expr : variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
                          lit<fixpoint>,
-						 var, abs, app, let > {
+						 var, abs, app, let,
+                         seq> {
 	using variant::variant;
   };
   
@@ -69,8 +75,8 @@ namespace ast {
 
 
   // datatype definitions
-  struct data {
-
+  struct type {
+    
 	var id;
 	vec<var> args;
 
@@ -85,7 +91,7 @@ namespace ast {
 
 
   // complete syntax
-  using node = variant<expr, def, data>;
+  using node = variant<expr, def, type>;
   
 }
 

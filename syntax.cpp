@@ -16,17 +16,23 @@ static struct {
   std::string abs = "lambda";
   std::string let = "let";
   std::string def = "def";
-  std::string data = "data";
   
-  std::set<std::string> all = {abs, let, def, data};
+  std::string type = "type";
+  std::string seq = "do";
+  
+  std::set<std::string> all = {abs, let, def, type, seq};
   
 } keyword;
 
 
+// core expressions
 static ast::expr transform_expr(const sexpr::expr& e);
 static ast::expr transform_let(const sexpr::list& e);
 static ast::expr transform_abs(const sexpr::list& e);
 static ast::var transform_var(const sexpr::expr& e);
+
+// 
+static ast::expr transform_seq(const sexpr::list& e);
 
 
 struct match_expr {
@@ -79,6 +85,10 @@ struct match_expr {
 		return transform_abs(self);
 	  }
 
+      if( s == keyword.seq ) {
+		return transform_seq(self);
+	  }
+      
 	  // TODO quote/lists
 	}
 
@@ -177,6 +187,16 @@ static ast::expr transform_abs(const sexpr::list& e) {
 }
 
 
+static ast::expr transform_seq(const sexpr::list& e) {
+  ast::seq res;
+  std::transform(e.begin() + 1, e.end(),
+                 std::back_inserter(res.exprs), [](const sexpr::expr& e) {
+                   return transform_expr(e);
+                 });
+  return res;
+}
+
+
 static ast::expr transform_expr(const sexpr::expr& e) {
   return e.apply<ast::expr>( match_expr() );
 }
@@ -218,17 +238,17 @@ static ast::var transform_var(const sexpr::expr& e) {
 
 struct transform_constructor {
 
-  ast::data::constructor operator()(const symbol& self) const {
+  ast::type::constructor operator()(const symbol& self) const {
 	return  { self.name(), {} };
   }
 
-  ast::data::constructor operator()(const sexpr::list& self) const {
+  ast::type::constructor operator()(const sexpr::list& self) const {
 
 	if(self.size() < 2 || !self[0].is<symbol>() )  {
 	  throw syntax_error("type constructor syntax");
 	}
 
-	ast::data::constructor res;
+	ast::type::constructor res;
 	res.id = self[0].as<symbol>().name();
 
 	for(unsigned i = 1, n = self.size(); i < n; ++i) {
@@ -242,22 +262,22 @@ struct transform_constructor {
   }
 
   template<class T>
-  ast::data::constructor operator()(const T& ) const {
+  ast::type::constructor operator()(const T& ) const {
 	throw syntax_error("type constructor syntax");
   }
   
 };
 
 // data
-static ast::data transform_data(const sexpr::list& list) {
-  assert( !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.data);
+static ast::type transform_type(const sexpr::list& list) {
+  assert( !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.type);
 
   // TODO split declaration/definition
   if( list.size() < 3 ) {
 	throw syntax_error("datatype syntax");
   }
   
-  ast::data res;
+  ast::type res;
 
   if( list[1].is<symbol>() ) {
 	res.id = list[1].as<symbol>().name();
@@ -291,7 +311,7 @@ static ast::data transform_data(const sexpr::list& list) {
 
   // datatype id/args are ok, now with type constructors
   for(unsigned i = 2; i < list.size(); ++i) {
-	res.def.push_back( list[i].apply< ast::data::constructor >( transform_constructor() ) );
+	res.def.push_back( list[i].apply< ast::type::constructor >( transform_constructor() ) );
   }
 
   return res;
@@ -314,8 +334,8 @@ ast::node transform(const sexpr::expr& e) {
 		return transform_def(list);
 	  }
 
-	  if( s == keyword.data ) {
-		return transform_data(list);
+	  if( s == keyword.type ) {
+		return transform_type(list);
 	  }
 	}
 	

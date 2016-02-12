@@ -72,6 +72,12 @@ struct unification_error : type_error {
 };
 
 
+// get a nice representative for type t
+static type::mono represent(union_find<type::mono>& types, const type::mono& t);
+
+// list all variables in monotype
+static std::set<type::var>&& variables(const type::mono& t, std::set<type::var>&& out = {});
+
 
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 
@@ -99,9 +105,22 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	assert( tb->args.size() == tb->func.arity() );	
 
 	// unify arg-wise
-	for(unsigned i = 0, n = ta->args.size(); i < n; ++i) {
-	  unify(types, ta->args[i], tb->args[i]);
-	}
+    try {
+      for(unsigned i = 0, n = ta->args.size(); i < n; ++i) {
+        unify(types, ta->args[i], tb->args[i]);
+      }
+    } catch(unification_error& e) {
+
+      auto ta = represent(types, a);
+      auto tb = represent(types, b);
+
+      // don't spit out dangling type variables
+      if( variables(ta).empty() && variables(tb).empty() ) {
+        std::cerr << "when unifying: " << ta << " with: " << tb << std::endl;
+      }
+
+      throw;
+    }
 	
   } else if( a.is<var>() || b.is<var>() ) {
 
@@ -211,7 +230,7 @@ struct instantiate {
 
 
 // list all variables in monotype
-static void get_vars(std::set<type::var>& out, const type::mono& t) {
+static std::set<type::var>&& variables(const type::mono& t, std::set<type::var>&& out) {
   using namespace type;
   
   if(t.is<var>() ) {
@@ -219,10 +238,11 @@ static void get_vars(std::set<type::var>& out, const type::mono& t) {
   } else if( t.is<app>() ) {
 
 	for(const auto& ti : t.as<app>()->args) {
-	  get_vars(out, ti);
+	  variables(ti, std::move(out));
 	}	  
   }
- 
+  
+  return std::move(out);
 }
 
 
@@ -256,9 +276,8 @@ type::poly generalize(const context& ctx, const type::mono& t) {
 
   
   // all type variables in monotype t
-  std::set<var> all;
-  get_vars(all, t);
-
+  std::set<var> vars = variables(t);
+  
   // TODO: maintain this set together with context ?
   std::set< var > bound;
 
@@ -274,7 +293,7 @@ type::poly generalize(const context& ctx, const type::mono& t) {
 
   std::set<var> diff;
 
-  std::set_difference(all.begin(), all.end(),
+  std::set_difference(vars.begin(), vars.end(),
 					  bound.begin(), bound.end(),
 					  std::inserter(diff, diff.begin()));
 
@@ -451,6 +470,18 @@ struct algorithm_w {
     type::poly p = type::traits<T>::type();
     type::mono res = p.apply<type::mono>(instantiate());
     debug.type = res;
+    return res;
+  }
+
+
+  // sequence: infer each type in the sequence and return last
+  type::mono operator()(const ast::seq& self, context& ctx) const {
+    
+    type::mono res;
+    for(const ast::expr& e : self.exprs ) {
+      res = e.apply<type::mono>(*this, ctx);
+    };
+
     return res;
   }
   

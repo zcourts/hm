@@ -566,7 +566,7 @@ struct hm_handler {
 
 
 	// TODO organize this mess ?
-    type::poly operator()(const ast::data& self, context& ctx) const {
+    type::poly operator()(const ast::type& self, context& ctx) const {
 
 	  // out new type
 	  type::poly p;
@@ -706,18 +706,29 @@ struct hm_handler {
 
     {
       type::var a;
-      ctx["ref"] = generalize(ctx, a >>= IO(Ref(a)));
+      ctx["ref"] = generalize(ctx, a >>= Ref(a));
     }
 
     {
       type::var a;
-      ctx["[]"] = generalize(ctx, List(a));
+      ctx["nil"] = generalize(ctx, List(a));
     }
 
     {
       type::var a;
       ctx["cons"] = generalize(ctx, a >>= List(a) >>= List(a) );
     }
+
+    {
+      type::var a;
+      ctx["head"] = generalize(ctx, List(a) >>= a );
+    }
+
+    {
+      type::var a;
+      ctx["tail"] = generalize(ctx, List(a) >>= List(a) );
+    }
+
     
     
     // ctx["get"] = 
