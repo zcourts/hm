@@ -132,28 +132,9 @@ static void unify(union_find<type::mono>& types, type::mono a, type::mono b) {
 	  throw unification_error(other, self);
 	};
 	
-	// note: second arg becomes the representative
-    out << " (" << types.rank[ a ] << " " << types.rank[b] << ")" ;
-
-    unsigned rself = types.rank[self], rother = types.rank[other];
-
-    // smallest rank goes under the largest, or under the second in
-    // case of equality
+    // other becomes the representative
     types.link(self, other);
 
-    // other should be the representative, but if rself > rother it's
-    // not: fix it
-    if( rself > rother ) {
-
-      // fix ranks 
-      types.rank[self] = rself;
-      types.rank[other] = rother + 1;
-
-      // exchange root
-      types.parent[self] = other;
-      types.parent[other] = other;     
-    }
-    
     out << "\t=> " << types.find(other);
      
     
@@ -351,7 +332,9 @@ struct algorithm_w {
 	  std::string msg = "unknown variable: ";
 	  throw type_error(msg + v.name());
 	}
-	
+
+    // TODO 
+    
 	// instantiate variable polytype stored in context
     type::mono res = it->second.apply<type::mono>(instantiate());
     debug.type = res;
@@ -474,16 +457,7 @@ struct algorithm_w {
   }
 
 
-  // sequence: infer each type in the sequence and return last
-  type::mono operator()(const ast::seq& self, context& ctx) const {
-    
-    type::mono res;
-    for(const ast::expr& e : self.exprs ) {
-      res = e.apply<type::mono>(*this, ctx);
-    };
-
-    return res;
-  }
+ 
   
 };
 

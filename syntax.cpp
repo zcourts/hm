@@ -18,9 +18,10 @@ static struct {
   std::string def = "def";
   
   std::string type = "type";
-  std::string seq = "do";
+  std::string do_ = "do";
+  std::string with = "with";
   
-  std::set<std::string> all = {abs, let, def, type, seq};
+  std::set<std::string> all = {abs, let, def, type, do_, with};
   
 } keyword;
 
@@ -32,7 +33,7 @@ static ast::expr transform_abs(const sexpr::list& e);
 static ast::var transform_var(const sexpr::expr& e);
 
 // 
-static ast::expr transform_seq(const sexpr::list& e);
+static ast::expr transform_do(const sexpr::list& e);
 
 
 struct match_expr {
@@ -85,8 +86,8 @@ struct match_expr {
 		return transform_abs(self);
 	  }
 
-      if( s == keyword.seq ) {
-		return transform_seq(self);
+      if( s == keyword.do_ ) {
+		return transform_do(self);
 	  }
       
 	  // TODO quote/lists
@@ -186,13 +187,43 @@ static ast::expr transform_abs(const sexpr::list& e) {
   return res;
 }
 
+template<class Iterator>
+static ast::expr transform_do(Iterator first, Iterator last) {
+  
+  if( first->template is<sexpr::list>() ) {
 
-static ast::expr transform_seq(const sexpr::list& e) {
-  ast::seq res;
-  std::transform(e.begin() + 1, e.end(),
-                 std::back_inserter(res.exprs), [](const sexpr::expr& e) {
-                   return transform_expr(e);
-                 });
+    auto& self = first->template as<sexpr::list>();
+
+    if( self.empty() ) throw syntax_error("bad do syntax");
+
+    // with
+    if( self[0].template is<symbol>() && self[0].template as<symbol>() == keyword.with ) {
+
+      if( self.size() != 2 && self.size() != 3) throw syntax_error("bad with syntax");
+      if( !self[1].template is<symbol>() )  throw syntax_error("symbol expected for with-binding");
+
+      // TODO FIXME optimize lookup
+      ast::var id = {self[1].template as<symbol>().name()};
+      ast::expr value = self.size() == 3 ? transform_expr( self[2] ) : id;
+
+      ast::abs lambda = { {id}, shared<ast::expr>(transform_do(first + 1, last)) };
+      ast::app call = { shared<ast::expr>( ast::var("bind") ),
+                        {value, lambda} };
+
+      return call;
+    }
+
+    
+  }
+
+  // TODO bind 
+  
+}
+
+static ast::expr transform_do(const sexpr::list& e) {
+
+  ast::expr res = transform_do(e.begin() + 1, e.end());
+  
   return res;
 }
 

@@ -51,17 +51,11 @@ namespace ast {
 	ref<expr> body;
   };
 
-  // do we really want an ast node ? or is a lambda enough ?
-  struct seq {
-    vec<expr> exprs;
-  };
-  
-  
+ 
   // TODO lists
   struct expr : variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
                          lit<fixpoint>,
-						 var, abs, app, let,
-                         seq> {
+						 var, abs, app, let> {
 	using variant::variant;
   };
   

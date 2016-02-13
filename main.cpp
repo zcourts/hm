@@ -711,6 +711,12 @@ struct hm_handler {
 
     {
       type::var a;
+      ctx["unsafe"] = generalize(ctx, IO(a) >>= a);
+    }
+
+    
+    {
+      type::var a;
       ctx["nil"] = generalize(ctx, List(a));
     }
 

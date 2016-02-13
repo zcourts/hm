@@ -8,11 +8,11 @@
 (set x (cons 1 (get x)))
 (set x (cons true (get x)))
 
-;; x is monomorphized as function argument
+;; x is monomorphized as a function argument: no problem
 ((lambda (x)
   (do 
       (set x (cons 1 (get x)))
-      (set x (cons true (get x)))
+      (set x (cons 2 (get x)))
     x))(ref nil))
    
    

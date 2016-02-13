@@ -39,6 +39,11 @@ public:
 
   // y becomes representative
   void link(const T& x, const T& y) {
+
+    // messes with the ranks so that y is always the representative
+    auto& ry = rank[y];
+    ry = std::max(rank[x], ry);
+    
 	dsets.link(x, y);
   }
 
