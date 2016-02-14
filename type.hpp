@@ -120,10 +120,12 @@ namespace type {
 
 
   // some helpers
-  extern const mono integer;
-  extern const mono boolean;
-  extern const mono unit;
+  extern const lit integer;
+  extern const lit boolean;
+  extern const lit unit;
 
+  extern const abs IO;
+  
   // function type
   extern const abs func;
   

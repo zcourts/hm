@@ -679,13 +679,13 @@ struct hm_handler {
 
 	}
 
-    static type::abs IO("IO", 1);
     static type::abs Ref("Ref", 1);
     static type::abs List("List", 1);
-    
+    using type::IO;
+	
     {
       type::var a;
-      ctx["return"] = generalize(ctx, a >>= IO(a) );
+      ctx["return"] = generalize(ctx, a >>= type::IO(a) );
     }
 
 
@@ -706,7 +706,7 @@ struct hm_handler {
 
     {
       type::var a;
-      ctx["ref"] = generalize(ctx, a >>= Ref(a));
+      ctx["ref"] = generalize(ctx, a >>= IO(Ref(a)));
     }
 
     {
@@ -735,7 +735,12 @@ struct hm_handler {
       ctx["tail"] = generalize(ctx, List(a) >>= List(a) );
     }
 
-    
+
+	{
+      type::var a;
+      ctx["print"] = generalize(ctx, a >>= IO(type::unit) );
+    }
+	    
     
     // ctx["get"] = 
 

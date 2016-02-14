@@ -189,34 +189,49 @@ static ast::expr transform_abs(const sexpr::list& e) {
 
 template<class Iterator>
 static ast::expr transform_do(Iterator first, Iterator last) {
-  
-  if( first->template is<sexpr::list>() ) {
 
-    auto& self = first->template as<sexpr::list>();
 
-    if( self.empty() ) throw syntax_error("bad do syntax");
+  if( first + 1 == last ) {
+	// base case: just replace expression
+	return transform_expr(*first);
+	
+  } else {
+	// bind
 
-    // with
-    if( self[0].template is<symbol>() && self[0].template as<symbol>() == keyword.with ) {
+	// TODO FIXME optimize symbol lookup + generate unique symbol ? or prevent using "_"
+	ast::var id = {"_"};
+	ast::expr value; 
+	
+	if( first->template is<sexpr::list>() ) {
 
-      if( self.size() != 2 && self.size() != 3) throw syntax_error("bad with syntax");
-      if( !self[1].template is<symbol>() )  throw syntax_error("symbol expected for with-binding");
+	  
+	  auto& self = first->template as<sexpr::list>();
 
-      // TODO FIXME optimize lookup
-      ast::var id = {self[1].template as<symbol>().name()};
-      ast::expr value = self.size() == 3 ? transform_expr( self[2] ) : id;
+	  if( self.empty() ) throw syntax_error("bad do syntax");
 
-      ast::abs lambda = { {id}, shared<ast::expr>(transform_do(first + 1, last)) };
-      ast::app call = { shared<ast::expr>( ast::var("bind") ),
-                        {value, lambda} };
+	  // with
+	  if( self[0].template is<symbol>() && self[0].template as<symbol>() == keyword.with ) {
 
-      return call;
-    }
+		if( self.size() != 2 && self.size() != 3) throw syntax_error("bad with syntax");
+		if( !self[1].template is<symbol>() )  throw syntax_error("symbol expected for with-binding");
 
-    
+		// TODO FIXME optimize lookup
+		id = {self[1].template as<symbol>().name()};
+		value = self.size() == 3 ? transform_expr( self[2] ) : id;
+	  }
+	}
+
+	// non-with binding: just bind current expr 
+	if( !value ) {
+	  value = transform_expr(*first);
+	}
+	
+	ast::abs lambda = { {id}, shared<ast::expr>(transform_do(first + 1, last)) };
+	ast::app call = { shared<ast::expr>( ast::var("bind") ),
+					  {value, lambda} };
+
+	return call;
   }
-
-  // TODO bind 
   
 }
 
