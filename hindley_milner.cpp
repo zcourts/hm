@@ -320,17 +320,16 @@ static type::mono represent(union_find<type::mono>& types,
 
 // generalize monotype given context (i.e. quantify all unbound
 // variables). you might want to 'represent' first.
-type::poly generalize(const context& ctx, const type::mono& t) {
+type::poly generalize(const context& ctx, const type::mono& t, const std::set<type::var>& exclude) {
   using namespace type;
 
   // all type variables in monotype t
   std::set<var> all = variables(t);
-  std::set<var> bad = dangerous(t);
   
   // non-dangerous variables
   std::set<var> vars;
   std::set_difference(all.begin(), all.end(),
-					  bad.begin(), bad.end(),
+					  exclude.begin(), exclude.end(),
 					  std::inserter(vars, vars.begin()));
   
   // TODO: maintain this set together with context ?
@@ -508,7 +507,10 @@ struct algorithm_w {
 	context sub(&c);
 
 	// generalize
-	type::poly gen = generalize(c, represent(types, def));
+	def = represent(types, def);
+	std::set<type::var> exclude = dangerous(def);
+	
+	type::poly gen = generalize(c, def, exclude);
 	
 	sub[let.id] = gen;
 	
@@ -543,18 +545,16 @@ type::poly hindley_milner(union_find<type::mono>& types, const context& ctx, con
   
   // compute monotype in current context
   type::mono t = e.apply<type::mono>( algorithm_w{types}, ctx);
+
+  t = represent(types, t);
+  return generalize(ctx, t, dangerous(t) );
   
-  // generalize as much as possible given context
-  type::poly p = generalize(ctx, represent(types, t) );
-  
-  return p;
 }
 
 
 
 
 static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&& res) {
-  
   if( t.is<type::app>() ) {
 	auto& self = t.as<type::app>();
 
@@ -563,7 +563,7 @@ static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&
 	  auto sub = variables(self->args[0]);
 	  res.insert(sub.begin(), sub.end());
 	} else if (self->func == type::func ) {
-	  auto sub = dangerous(self->args[1]);
+	  auto sub = dangerous(self->args[0]);
 	  res.insert(sub.begin(), sub.end());
 	} else  {
 	  // not quite sure about that but...

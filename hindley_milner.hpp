@@ -2,7 +2,9 @@
 #define HINDLEY_MILNER_HPP
 
 #include <map>
+#include <set>
 #include <stdexcept>
+
 #include "type.hpp"
 #include "ast.hpp"
 #include "union_find.hpp"
@@ -51,7 +53,7 @@ public:
 
 // generalize monotype t given context ctx i.e. quantify all variables
 // unbound in ctx
-type::poly generalize(const context& ctx, const type::mono& t);
+type::poly generalize(const context& ctx, const type::mono& t, const std::set<type::var>& exclude = {});
 
 // hindley-milner type inference for expression e in context ctx.
 type::poly hindley_milner(union_find<type::mono>& types, const context& ctx, const ast::expr& e);

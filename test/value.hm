@@ -1,21 +1,29 @@
 
 ;; value restriction issue
 
-;; form a polymorphic reference
+(def push
+  (lambda (x value)
+          (do
+            (with x)
+            (set x (cons value (get x))))))
+
 (def x (ref nil))
+(push x 1)
+;;(push x 2)
 
-;; type checking is unsound !
-(set x (cons 1 (get x)))
-(set x (cons true (get x)))
 
-;; x is monomorphized as a function argument: no problem
-((lambda (x)
-  (do 
-      (set x (cons 1 (get x)))
-      (set x (cons 2 (get x)))
-    x))(ref nil))
-   
-   
-  
-         
-     
+(def func-ref
+  (lambda (x)
+          (let r (ref x)
+               (lambda (z)
+                       (do
+                         (with r)
+                         (with z)
+                         (set r z))))))
+
+(def bob (func-ref nil))
+
+;; (do 
+;;   (with r)
+;;   (set r z))))))
+
