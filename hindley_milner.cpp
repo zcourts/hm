@@ -26,6 +26,62 @@ namespace type {
 }
 
 
+// context
+const type::poly& context::find(const ast::var& var) const {
+
+  auto it = table.find(var);
+
+  if( it != table.end() ) return it->second;
+
+  if( parent ) return parent->find(var);
+
+  throw type_error( std::string("unbound variable: ") + var.name() );
+}
+
+
+type::poly& context::operator[](const ast::var& var) {
+  return table[var];
+}
+
+context::iterator context::begin() const {
+  return {this, table.begin()};
+}
+
+context::iterator context::end() const {
+  return {nullptr, {}};
+}
+
+
+bool context::iterator::operator!=(const iterator& other) const {
+  if(c != other.c) return true;
+  if(c && i != other.i) return true;
+  return false;
+}
+
+context::iterator& context::iterator::operator++() {
+  if(!c) throw std::out_of_range("iterator");
+  
+  ++i;
+  if(i == c->table.end()) {
+	c = c->parent;
+	
+	if(c) {
+	  i = c->table.begin();
+	}
+  }
+  
+  return *this;
+}
+
+
+void context::insert(iterator first, iterator last) {
+  table.insert(first, last);
+};
+
+const context::table_type::value_type& context::iterator::operator*() const {
+  if(!c) throw std::out_of_range("iterator");
+  return *i;
+}
 
 // unify monotypes @a and @b in union_find structure @types
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
@@ -321,30 +377,36 @@ struct debug_raii {
 struct algorithm_w {
 
   union_find<type::mono>& types;
+
+  vec<type::mono>& update;
   
   // var
-  type::mono operator()(const ast::var& v, context& c) const {
+  type::mono operator()(const ast::var& v, const context& c) const {
 	debug_raii debug("var", v);
 	
-	auto it = c.find(v);
+	type::poly p = c.find(v);
 
-	if(it == c.end()) {
-	  std::string msg = "unknown variable: ";
-	  throw type_error(msg + v.name());
+	type::mono res;
+	if( p.is<type::scheme>() ) {
+	  // instantiate type scheme with fresh variables
+	  res = p.apply<type::mono>(instantiate());
+	} else {
+
+	  // this happens with value restriction
+	  res = p.as<type::mono>();
+
+	  // notify the toplevel context that unification may update the
+	  // type
+	  update.push_back( res );
 	}
-
-    // TODO 
-    
-	// instantiate variable polytype stored in context
-    type::mono res = it->second.apply<type::mono>(instantiate());
-    debug.type = res;
+	debug.type = res;
     return res;
   }
 
 
 
   // app
-  type::mono operator()(const ast::app& self, context& c) const {
+  type::mono operator()(const ast::app& self, const context& c) const {
 	debug_raii debug("app");
 	
 	// infer type for function 
@@ -377,15 +439,13 @@ struct algorithm_w {
 
   
 
-  // helper
+  // abs helper
   template<class Iterator>
-  type::mono abs(Iterator first, Iterator last, ref<ast::expr> body, context& c) const {
+  type::mono abs(Iterator first, Iterator last, ref<ast::expr> body, const context& c) const {
 	const unsigned argc = last - first;
 
 	// enriched context with argument type
-
-	// TODO this is horribly inefficient
-	context sub = c;
+	context sub(&c);
 	
 	type::mono from, to;
 
@@ -415,7 +475,7 @@ struct algorithm_w {
   
   
   // abs
-  type::mono operator()(const ast::abs& self, context& c) const {
+  type::mono operator()(const ast::abs& self, const context& c) const {
 	debug_raii debug("abs");
     type::mono res = abs(self.args.begin(), self.args.end(), self.body, c);
     debug.type = res;
@@ -424,15 +484,14 @@ struct algorithm_w {
   
 
   // let
-  type::mono operator()(const ast::let& let, context& c) const {
+  type::mono operator()(const ast::let& let, const context& c) const {
 	debug_raii debug("let", let.id);
 	
 	// infer type for definition
 	type::mono def = let.value->apply<type::mono>(*this, c);
 
 	// enriched context with local definition
-	// TODO this is horribly inefficient
-	context sub = c;
+	context sub(&c);
 	
 	// generalize as much as possible given current context
 	type::poly gen = generalize(c, represent(types, def));
@@ -448,7 +507,7 @@ struct algorithm_w {
   
   // litterals: constant types
   template<class T>
-  type::mono operator()(const ast::lit<T>& , context& ) const {
+  type::mono operator()(const ast::lit<T>& , const context& ) const {
 	debug_raii debug("lit");
     type::poly p = type::traits<T>::type();
     type::mono res = p.apply<type::mono>(instantiate());
@@ -467,15 +526,19 @@ struct algorithm_w {
 
 type::poly hindley_milner(const context& ctx, const ast::expr& e) {
 
-  context c = ctx;
   union_find<type::mono> types;
-
+  vec<type::mono> update;
+  
   // compute monotype in current context
-  type::mono t = e.apply<type::mono>( algorithm_w{types}, c);
-
+  type::mono t = e.apply<type::mono>( algorithm_w{types, update}, ctx);
+  
   // generalize as much as possible given context
-  type::poly p = generalize(c, represent(types, t) );
+  type::poly p = generalize(ctx, represent(types, t) );
 
+  // TODO update monomorphic type variables in context according to
+  // unification
+  
+  
   // std::cout << types << std::endl;
   return p;
 }
