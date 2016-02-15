@@ -44,6 +44,10 @@ type::poly& context::operator[](const ast::var& var) {
 }
 
 context::iterator context::begin() const {
+  if( table.empty() ) {
+	if( parent ) return parent->begin();
+	else return end();
+  }
   return {this, table.begin()};
 }
 
@@ -54,15 +58,17 @@ context::iterator context::end() const {
 
 bool context::iterator::operator!=(const iterator& other) const {
   if(c != other.c) return true;
-  if(c && i != other.i) return true;
+  if(c && (i != other.i)) return true;
   return false;
 }
 
 context::iterator& context::iterator::operator++() {
   if(!c) throw std::out_of_range("iterator");
+
+  if(c->table.empty()) throw std::out_of_range("derp");
+
   
-  ++i;
-  if(i == c->table.end()) {
+  if(++i == c->table.end()) {
 	c = c->parent;
 	
 	if(c) {
@@ -82,6 +88,12 @@ const context::table_type::value_type& context::iterator::operator*() const {
   if(!c) throw std::out_of_range("iterator");
   return *i;
 }
+
+
+
+
+// dangerous variables
+static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&& res = {});
 
 // unify monotypes @a and @b in union_find structure @types
 static void unify(union_find<type::mono>& types, type::mono a, type::mono b);
@@ -311,9 +323,15 @@ static type::mono represent(union_find<type::mono>& types,
 type::poly generalize(const context& ctx, const type::mono& t) {
   using namespace type;
 
-  
   // all type variables in monotype t
-  std::set<var> vars = variables(t);
+  std::set<var> all = variables(t);
+  std::set<var> bad = dangerous(t);
+  
+  // non-dangerous variables
+  std::set<var> vars;
+  std::set_difference(all.begin(), all.end(),
+					  bad.begin(), bad.end(),
+					  std::inserter(vars, vars.begin()));
   
   // TODO: maintain this set together with context ?
   std::set< var > bound;
@@ -378,8 +396,6 @@ struct algorithm_w {
 
   union_find<type::mono>& types;
 
-  vec<type::mono>& update;
-  
   // var
   type::mono operator()(const ast::var& v, const context& c) const {
 	debug_raii debug("var", v);
@@ -393,12 +409,9 @@ struct algorithm_w {
 	} else {
 
 	  // this happens with value restriction
-	  res = p.as<type::mono>();
-
-	  // notify the toplevel context that unification may update the
-	  // type
-	  update.push_back( res );
+	  res = types.find( p.as<type::mono>() );
 	}
+	
 	debug.type = res;
     return res;
   }
@@ -481,6 +494,7 @@ struct algorithm_w {
     debug.type = res;
     return res;
   }
+
   
 
   // let
@@ -492,9 +506,10 @@ struct algorithm_w {
 
 	// enriched context with local definition
 	context sub(&c);
-	
-	// generalize as much as possible given current context
+
+	// generalize
 	type::poly gen = generalize(c, represent(types, def));
+	
 	sub[let.id] = gen;
 	
 	// infer type for the body given our assumption
@@ -524,24 +539,41 @@ struct algorithm_w {
 
 
 
-type::poly hindley_milner(const context& ctx, const ast::expr& e) {
-
-  union_find<type::mono> types;
-  vec<type::mono> update;
+type::poly hindley_milner(union_find<type::mono>& types, const context& ctx, const ast::expr& e) {
   
   // compute monotype in current context
-  type::mono t = e.apply<type::mono>( algorithm_w{types, update}, ctx);
+  type::mono t = e.apply<type::mono>( algorithm_w{types}, ctx);
   
   // generalize as much as possible given context
   type::poly p = generalize(ctx, represent(types, t) );
-
-  // TODO update monomorphic type variables in context according to
-  // unification
   
-  
-  // std::cout << types << std::endl;
   return p;
 }
 
 
- 
+
+
+static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&& res) {
+  
+  if( t.is<type::app>() ) {
+	auto& self = t.as<type::app>();
+
+	// evil IO !
+	if( self->func == type::IO ) {
+	  auto sub = variables(self->args[0]);
+	  res.insert(sub.begin(), sub.end());
+	} else if (self->func == type::func ) {
+	  auto sub = dangerous(self->args[1]);
+	  res.insert(sub.begin(), sub.end());
+	} else  {
+	  // not quite sure about that but...
+	  for(const auto& t : self->args) {
+		dangerous(t, std::move(res));
+	  }
+	}
+  }
+  
+  return std::move(res);
+}
+
+

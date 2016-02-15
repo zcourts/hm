@@ -245,8 +245,6 @@ struct lisp_handler {
 
 
 	
-
-	
 	(*env)[ "type" ] = +[](environment&, value* arg, value* end) -> value {
 	  const unsigned argc = end - arg;
 	  expect_argc(argc, 1);
@@ -539,22 +537,21 @@ struct lisp_handler {
 
 struct hm_handler {
   mutable context ctx;
-
-
+  mutable union_find<type::mono> types;
 
 
   struct type_check {
 
-    type::poly operator()(const ast::expr& self, const context& ctx) const {
-	  type::poly p = hindley_milner(ctx, self);
+    type::poly operator()(const ast::expr& self, union_find<type::mono>& types, const context& ctx) const {
+	  type::poly p = hindley_milner(types, ctx, self);
 	  std::cout << " :: " << p << std::endl;
       return p;
 	}
 
-    type::poly operator()(const ast::def& self, context& ctx) const {
+    type::poly operator()(const ast::def& self, union_find<type::mono>& types, context& ctx) const {
 	  // we infer type using: (def x y) => (let x y x)
 	  ast::let tmp = {self.id, self.value, shared<ast::expr>(self.id)};
-	  type::poly p = hindley_milner(ctx, tmp);
+	  type::poly p = hindley_milner(types, ctx, tmp);
 	  
 	  // add to type context
 	  ctx[tmp.id] = p;
@@ -566,7 +563,7 @@ struct hm_handler {
 
 
 	// TODO organize this mess ?
-    type::poly operator()(const ast::type& self, context& ctx) const {
+    type::poly operator()(const ast::type& self, union_find<type::mono>& types, context& ctx) const {
 
 	  // out new type
 	  type::poly p;
@@ -651,7 +648,7 @@ struct hm_handler {
 	try {
 	  for(const sexpr::expr& s : prog ) {
 		const ast::node e = transform( s );
-		e.apply<type::poly>(type_check(), ctx);
+		e.apply<type::poly>(type_check(), types, ctx);
 		
 	  }
 	}	

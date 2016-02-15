@@ -4,6 +4,8 @@
 #include <map>
 #include <boost/pending/disjoint_sets.hpp>
 
+#include <iostream>
+
 template<class T>
 struct union_find {
   using rank_type =  std::map<T, int>;
@@ -24,6 +26,9 @@ struct union_find {
   rank_type rank;
   parent_type parent;
 
+  // nice representatives
+  parent_type nice;
+  
   template<class U> using pm = boost::associative_property_map<U>;
 
   boost::disjoint_sets< pm<rank_type>, pm<parent_type> > dsets;   
@@ -39,17 +44,15 @@ public:
 
   // y becomes representative
   void link(const T& x, const T& y) {
+  	dsets.link(x, y);
 
-    // messes with the ranks so that y is always the representative
-    auto& ry = rank[y];
-    ry = std::max(rank[x], ry);
-    
-	dsets.link(x, y);
+	nice[x] = y;
+	// nice[y] = y;
   }
 
   // find representative for type
   T find(const T& x) {
-	return dsets.find_set(x);
+	return nice[dsets.find_set(x)];
   }
 
 

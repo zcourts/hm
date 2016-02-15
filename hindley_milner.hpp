@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include "type.hpp"
 #include "ast.hpp"
+#include "union_find.hpp"
 
 
 struct type_error : std::runtime_error {
@@ -53,7 +54,7 @@ public:
 type::poly generalize(const context& ctx, const type::mono& t);
 
 // hindley-milner type inference for expression e in context ctx.
-type::poly hindley_milner(const context& ctx, const ast::expr& e);
+type::poly hindley_milner(union_find<type::mono>& types, const context& ctx, const ast::expr& e);
 
 
 #endif
