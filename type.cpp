@@ -30,22 +30,19 @@ namespace type {
   struct stream {
 
 	typedef std::map<type::var, unsigned> context_type;
-	context_type& context;
 
-	stream(context_type& context, bool parentheses = false)
-	  : context( context ),
-		parentheses( parentheses ) {
-	}
-	
+	context_type& bound;
+	context_type& free;
 	bool parentheses;
 	
-	// quantified
+	
+	// type scheme
 	void operator()(const scheme& self, std::ostream& out) const {
 
 	  // add stuff to context
 	  for(unsigned i = 0, n = self.args.size(); i < n; ++i) {
-		const unsigned pos = context.size();
-		context[self.args[i]] = pos;
+		const unsigned pos = bound.size();
+		bound[self.args[i]] = pos;
 	  }
 
 	  self.body.apply(*this, out);
@@ -60,15 +57,15 @@ namespace type {
 	  if( parentheses ) out << '(';
 	  
 	  if( self->func == func ) { 
-		self->args[0].apply( stream{context, true}, out);
+		self->args[0].apply( stream{bound, free, true}, out);
 		out << " -> ";
-		self->args[1].apply( stream{context, false}, out);
+		self->args[1].apply( stream{bound, free, false}, out);
 	  } else {
 
 		out << self->func;
 		
 		for(const type::mono& t : self->args) {
-		  t.apply( stream{context, true}, out << " " );
+		  t.apply( stream{bound, free, true}, out << " " );
 		}
 		
 	  }
@@ -82,34 +79,41 @@ namespace type {
 	}
 
 
-	void operator()(const var& self, std::ostream& out) const {
-	  auto id = context.find(self);
+	static void varname(std::ostream& out, unsigned i) {
 
-	  if( id != context.end() && ('a' + id->second) < 'z' ) {
-		out << '\'' << (char)('a' + id->second);
-	  } else { 
-		out << "'" << self.index;
+	  if( 'a' + i < 'z' ) out << (char)('a' + i);
+	  else out << i;
+	  
+	}
+
+	void operator()(const var& self, std::ostream& out) const {
+	  auto id = bound.find(self);
+	  
+	  if( id != bound.end() ) {
+		out << "'";
+		varname(out, id->second);
+	  } else {
+		id = free.insert( std::make_pair(self, free.size() ) ).first;
+		out << "'_";
+		varname(out, id->second);
 	  }
+	  
 	}
 	
   };
 
 
-   
-
-  std::ostream& operator<< (std::ostream& out, const mono& p) {
-	stream::context_type context;
-	p.apply( stream(context), out );
-	return out;
-  }
-  
   
   std::ostream& operator<< (std::ostream& out, const poly& p) {
-	stream::context_type context;
-	p.apply( stream(context), out );
+	stream::context_type bound, free;
+	p.apply( stream{bound, free, false}, out );
 	return out;
   }
 
+  std::ostream& operator<< (std::ostream& out, const mono& t) {
+	return out << poly(t);
+  }
+	
   const lit integer = traits<int>::type().as<lit>();
   const lit boolean = traits<bool>::type().as<lit>();
   const lit unit = traits<void>::type().as<lit>();
