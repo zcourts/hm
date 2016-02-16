@@ -598,13 +598,13 @@ static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&
 	auto& self = t.as<type::app>();
 
 	// evil IO !
-	if( self->func == type::IO ) {
+	if( self->func == type::io ) {
 	  auto sub = variables(self->args[0]);
 	  res.insert(sub.begin(), sub.end());
 	} else if (self->func == type::func ) {
 
 	  // function has side effects
-	  if( self->args[1].is<type::app>() && self->args[1].as<type::app>()->func == type::IO ) {
+	  if( self->args[1].is<type::app>() && self->args[1].as<type::app>()->func == type::io ) {
 
 		// variables in contravariant position are dangerous
 		auto sub = variables(self->args[0]);

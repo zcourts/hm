@@ -120,11 +120,12 @@ namespace type {
   const lit boolean = traits<bool>::type().as<lit>();
   const lit unit = traits<void>::type().as<lit>();
 
-
-
+  
   static std::map<abs, unsigned> arity_map;
   
-  const abs IO("io", 1);
+  const abs io("io", 1);
+  const abs ref("ref", 1);
+  
   const abs func = { "->", 2 };
 
 

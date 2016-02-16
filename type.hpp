@@ -124,7 +124,8 @@ namespace type {
   extern const lit boolean;
   extern const lit unit;
 
-  extern const abs IO;
+  extern const abs io;
+  extern const abs ref;  
   
   // function type
   extern const abs func;

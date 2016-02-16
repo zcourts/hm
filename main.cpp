@@ -664,79 +664,78 @@ struct hm_handler {
 
   hm_handler() {
 
-	ctx[ "+" ] = type::mono( type::integer >>= type::integer >>= type::integer);
-	ctx[ "*" ] = type::mono( type::integer >>= type::integer >>= type::integer);    
-	ctx[ "-" ] = type::mono( type::integer >>= type::integer >>= type::integer);
-	ctx[ "=" ] = type::mono( type::integer >>= type::integer >>= type::boolean);
+	using namespace type;
+	ctx[ "+" ] = mono( integer >>= integer >>= integer);
+	ctx[ "*" ] = mono( integer >>= integer >>= integer);    
+	ctx[ "-" ] = mono( integer >>= integer >>= integer);
+	ctx[ "=" ] = mono( integer >>= integer >>= boolean);
 
 	// this is just for type inference purpose
 	{
-	  type::var v;
-	  ctx[ "if" ] = generalize(ctx, type::boolean >>= v >>= v >>= v);
+	  var v;
+	  ctx[ "if" ] = generalize(ctx, boolean >>= v >>= v >>= v);
 
 	}
 
-    static type::abs Ref("ref", 1);
-    static type::abs List("list", 1);
-	
-    using type::IO;
+    static type::abs list("list", 1);
+	using type::ref;
 	
     {
-      type::var a;
-      ctx["return"] = generalize(ctx, a >>= type::IO(a) );
+      var a;
+      ctx["return"] = generalize(ctx, a >>= io(a) );
     }
 
 
     {
-      type::var a, b;
-      ctx["bind"] = generalize(ctx, IO(a) >>= (a >>= IO(b)) >>= IO(b) );
+      var a, b;
+      ctx["bind"] = generalize(ctx, io(a) >>= (a >>= io(b)) >>= io(b) );
     }
 
     {
-      type::var a;
-      ctx["get"] = generalize(ctx, Ref(a) >>= a );
+      var a;
+      ctx["get"] = generalize(ctx, ref(a) >>= a );
     }
 
     {
-      type::var a;
-      ctx["set"] = generalize(ctx, Ref(a) >>= a >>= IO(type::unit) );
+      var a;
+      ctx["set"] = generalize(ctx, ref(a) >>= a >>= io(unit) );
     }
 
     {
-      type::var a;
-      ctx["ref"] = generalize(ctx, a >>= IO(Ref(a)));
+      var a;
+      ctx["ref"] = generalize(ctx, a >>= io(ref(a)));
     }
 
     {
-      type::var a;
-      ctx["unsafe"] = generalize(ctx, IO(a) >>= a);
+      var a;
+      ctx["unsafe"] = generalize(ctx, io(a) >>= a);
     }
 
     
     {
-      type::var a;
-      ctx["nil"] = generalize(ctx, List(a));
+      var a;
+      ctx["nil"] = generalize(ctx, list(a));
     }
 
     {
-      type::var a;
-      ctx["cons"] = generalize(ctx, a >>= List(a) >>= List(a) );
+      var a;
+      ctx["cons"] = generalize(ctx, a >>= list(a) >>= list(a) );
     }
 
     {
-      type::var a;
-      ctx["head"] = generalize(ctx, List(a) >>= a );
+      var a;
+      ctx["head"] = generalize(ctx, list(a) >>= a );
     }
 
     {
-      type::var a;
-      ctx["tail"] = generalize(ctx, List(a) >>= List(a) );
+      var a;
+      ctx["tail"] = generalize(ctx, list(a) >>= list(a) );
     }
 
 
 	{
-      type::var a;
-      ctx["print"] = generalize(ctx, a >>= IO(type::unit) );
+      var a;
+      ctx["print"] = generalize(ctx, a >>= io(unit) );
     }
 	    
     
