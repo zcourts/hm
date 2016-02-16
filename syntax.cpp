@@ -13,7 +13,7 @@
 
 
 static struct {
-  std::string abs = "lambda";
+  std::string abs = "fn";
   std::string let = "let";
   std::string def = "def";
   

@@ -3,20 +3,20 @@
 ref
 
 (def push
-  (lambda (x value)
+  (fn (x value)
           (set! x (cons value (! x)))))
 
 (def x (ref nil))
 
-(push x 1)
+(def x 1)
 ;; (push x 3.4)
 
 
 (def func-ref
-  (lambda (x)
-          (let r (ref x)
-               (lambda (z)
-                       (set! r z)))))
+  (fn (x)
+    (let r (ref x)
+         (fn (z)
+           (set! r z)))))
 
 (def l (cons 1 nil))
 (def b (cons true nil))
