@@ -39,8 +39,35 @@ const type::poly& context::find(const ast::var& var) const {
 }
 
 
-type::poly& context::operator[](const ast::var& var) {
-  return table[var];
+context& context::set(const ast::var& var, const type::poly& p) {
+  auto it = table.insert( last, std::make_pair(var, p) );
+
+  // insertion failed
+  if(it->first != var) {
+
+	// TODO are we super sure this is sufficient ?
+	if( it->second.is<type::scheme>() ) {
+	  
+	  for(const auto& v : it->second.as<type::scheme>().args ) {
+		vars.erase(v);
+	  }
+	  
+	}
+	
+	it->second = p;
+  }
+  
+  last = it;
+  
+  if( it->second.is<type::scheme>() ) {
+	
+	for(const auto& v : it->second.as<type::scheme>().args ) {
+	  vars.insert(v);
+	}
+	
+  }
+  
+  return *this;
 }
 
 context::iterator context::begin() const {
@@ -81,13 +108,27 @@ context::iterator& context::iterator::operator++() {
 
 
 void context::insert(iterator first, iterator last) {
-  table.insert(first, last);
+  for(auto it = first; it != last; ++it) {
+	set( (*it).first, (*it).second);
+  }
 };
 
 const context::table_type::value_type& context::iterator::operator*() const {
   if(!c) throw std::out_of_range("iterator");
   return *i;
 }
+
+
+bool context::bound(const type::var& v) const {
+
+  auto it = vars.find(v);
+  if( it != vars.end() ) return true;
+
+  if( parent ) return parent->bound(v);
+  return false;
+}
+
+
 
 
 
@@ -317,47 +358,39 @@ static type::mono represent(union_find<type::mono>& types,
   return res;  
 }
 
+template<class T>
+static std::set<T> operator-(const std::set<T>& lhs, const std::set<T>& rhs) {
+  std::set<T> res;
+
+  std::set_difference(lhs.begin(), lhs.end(),
+					  rhs.begin(), rhs.end(),
+					  std::inserter(res, res.begin()));
+
+  return res;
+}
+
 
 // generalize monotype given context (i.e. quantify all unbound
 // variables). you might want to 'represent' first.
 type::poly generalize(const context& ctx, const type::mono& t, const std::set<type::var>& exclude) {
   using namespace type;
 
-  // all type variables in monotype t
-  std::set<var> all = variables(t);
+  std::set<var> vars = variables(t) - exclude;
+
+  std::set<var> free;
   
-  // non-dangerous variables
-  std::set<var> vars;
-  std::set_difference(all.begin(), all.end(),
-					  exclude.begin(), exclude.end(),
-					  std::inserter(vars, vars.begin()));
+  std::copy_if(vars.begin(), vars.end(), std::inserter(free, free.end()),
+			   [&](const var& v) {
+				 return !ctx.bound(v);
+			   });
   
-  // TODO: maintain this set together with context ?
-  std::set< var > bound;
-
-  // all bound type variables in context
-  for(const auto& x : ctx) {
-
-	if( x.second.is<scheme>() ) {
-	  for(const auto& v : x.second.as< scheme >().args ) {
-		bound.insert( v );
-	  }
-	};
-  }
-
-  std::set<var> diff;
-
-  std::set_difference(vars.begin(), vars.end(),
-					  bound.begin(), bound.end(),
-					  std::inserter(diff, diff.begin()));
-
-  if( diff.empty() ) {
-	// no quantified variables
+  if( free.empty() ) {
+	// no free variables
 	return t;
   } else {
 	scheme res;
 	
-	std::copy(diff.begin(), diff.end(), std::back_inserter(res.args));
+	std::copy(free.begin(), free.end(), std::back_inserter(res.args));
 
 	// TODO does this work ?
 	// watch out: we want deep copy with class representatives
@@ -470,7 +503,7 @@ struct algorithm_w {
 	  from = type::var();
 	  
 	  // add assumption to the context
-	  sub[ *first ] = from;
+	  sub.set(*first, from);
 	}
 
 	if( argc > 1 ) {
@@ -512,7 +545,7 @@ struct algorithm_w {
 	
 	type::poly gen = generalize(c, def, exclude);
 	
-	sub[let.id] = gen;
+	sub.set(let.id, gen);
 	
 	// infer type for the body given our assumption
 	type::mono body = let.body->apply<type::mono>(*this, sub);

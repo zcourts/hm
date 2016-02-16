@@ -15,7 +15,6 @@ struct type_error : std::runtime_error {
 };
 
 
-// TODO make contexts hierarchical to avoid copies
 class context {
   using parent_type = const context*;
   parent_type parent;
@@ -23,6 +22,11 @@ class context {
   using table_type = std::map< ast::var, type::poly >;
   table_type table;
 
+  using vars_type = std::set< type::var >;
+  vars_type vars;
+
+  // constant amortized insertions
+  table_type::iterator last = table.end();
 public:
 
   context(parent_type parent = nullptr) : parent(parent) { }
@@ -30,8 +34,8 @@ public:
   // hierarchical
   const type::poly& find(const ast::var& var) const;
 
-  // non-hierarchical 
-  type::poly& operator[](const ast::var& var);
+  // non-hierarchical
+  context& set(const ast::var& var, const type::poly&);
 
   // recursive iterator
   struct iterator {
@@ -42,11 +46,26 @@ public:
 	iterator& operator++();
 	const table_type::value_type& operator*() const;
   };
+
+  bool bound(const type::var& ) const;
   
   iterator begin() const;
   iterator end() const;
 
   void insert(iterator first, iterator last);
+
+  struct setter {
+	context* owner;
+	const ast::var& var;
+
+	void operator=(const type::poly& p) {
+	  owner->set(var, p);
+	}
+  };
+
+  setter operator[](const ast::var& var) {
+	return {this, var};
+  }
   
 };
 
