@@ -4,23 +4,19 @@ ref
 
 (def push
   (lambda (x value)
-          (do
-            (with x)
-            (set x (cons value (get x))))))
+          (set! x (cons value (! x)))))
 
 (def x (ref nil))
 
 (push x 1)
-;;(push x 2)
+;; (push x 3.4)
 
 
 (def func-ref
   (lambda (x)
           (let r (ref x)
                (lambda (z)
-                       (do
-                         (with r)
-                         (set r z))))))
+                       (set! r z)))))
 
 (def l (cons 1 nil))
 (def b (cons true nil))

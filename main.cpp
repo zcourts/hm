@@ -693,17 +693,17 @@ struct hm_handler {
 
     {
       var a;
-      ctx["get"] = generalize(ctx, ref(a) >>= a );
+      ctx["!"] = generalize(ctx, ref(a) >>= a );
     }
 
     {
       var a;
-      ctx["set"] = generalize(ctx, ref(a) >>= a >>= io(unit) );
+      ctx["set!"] = generalize(ctx, ref(a) >>= a >>= io(unit) );
     }
 
     {
       var a;
-      ctx["ref"] = generalize(ctx, a >>= io(ref(a)));
+      ctx["ref"] = generalize(ctx, a >>= ref(a));
     }
 
     {

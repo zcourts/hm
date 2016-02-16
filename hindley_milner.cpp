@@ -597,8 +597,8 @@ static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&
   if( t.is<type::app>() ) {
 	auto& self = t.as<type::app>();
 
-	// evil IO !
-	if( self->func == type::io ) {
+	// evil refs !
+	if( self->func == type::ref ) {
 	  auto sub = variables(self->args[0]);
 	  res.insert(sub.begin(), sub.end());
 	} else if (self->func == type::func ) {
