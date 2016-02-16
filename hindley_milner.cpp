@@ -563,9 +563,19 @@ static std::set<type::var>&& dangerous(const type::mono& t, std::set<type::var>&
 	  auto sub = variables(self->args[0]);
 	  res.insert(sub.begin(), sub.end());
 	} else if (self->func == type::func ) {
-	  auto sub = dangerous(self->args[0]);
-	  res.insert(sub.begin(), sub.end());
+
+	  // function has side effects
+	  if( self->args[1].is<type::app>() && self->args[1].as<type::app>()->func == type::IO ) {
+
+		// variables in contravariant position are dangerous
+		auto sub = variables(self->args[0]);
+		res.insert(sub.begin(), sub.end());
+	  }
+	  
 	} else  {
+
+	  // TODO systematize covariance/contravariance analysis ?
+	  
 	  // not quite sure about that but...
 	  for(const auto& t : self->args) {
 		dangerous(t, std::move(res));

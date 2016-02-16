@@ -53,8 +53,9 @@ namespace type {
 	}
 
 	void operator()(const app& self, std::ostream& out) const {
-
-	  if( parentheses ) out << '(';
+	  const unsigned size = self->args.size();
+	  
+	  if( parentheses) out << '(';
 	  
 	  if( self->func == func ) { 
 		self->args[0].apply( stream{bound, free, true}, out);
@@ -63,14 +64,15 @@ namespace type {
 	  } else {
 
 		out << self->func;
-		
+
+		unsigned i = 0;
 		for(const type::mono& t : self->args) {
-		  t.apply( stream{bound, free, true}, out << " " );
+		  t.apply( stream{bound, free, (++i != size)}, out << " " );
 		}
 		
 	  }
 
-	  if( parentheses ) out << ')';
+	  if( parentheses) out << ')';
 	}
 
 
@@ -94,7 +96,7 @@ namespace type {
 		varname(out, id->second);
 	  } else {
 		id = free.insert( std::make_pair(self, free.size() ) ).first;
-		out << "'_";
+		out << "!";
 		varname(out, id->second);
 	  }
 	  
@@ -122,7 +124,7 @@ namespace type {
 
   static std::map<abs, unsigned> arity_map;
   
-  const abs IO("IO", 1);
+  const abs IO("io", 1);
   const abs func = { "->", 2 };
 
 

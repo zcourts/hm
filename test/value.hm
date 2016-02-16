@@ -8,6 +8,7 @@
             (set x (cons value (get x))))))
 
 (def x (ref nil))
+
 (push x 1)
 ;;(push x 2)
 
@@ -18,10 +19,15 @@
                (lambda (z)
                        (do
                          (with r)
-                         (with z)
                          (set r z))))))
 
+(def l (cons 1 nil))
+(def b (cons true nil))
 (def bob (func-ref nil))
+
+(bob l)
+(bob b)
+;; (bob true)
 
 ;; (do 
 ;;   (with r)

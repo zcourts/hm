@@ -676,8 +676,9 @@ struct hm_handler {
 
 	}
 
-    static type::abs Ref("Ref", 1);
-    static type::abs List("List", 1);
+    static type::abs Ref("ref", 1);
+    static type::abs List("list", 1);
+	
     using type::IO;
 	
     {
