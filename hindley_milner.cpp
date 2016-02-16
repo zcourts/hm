@@ -547,7 +547,13 @@ type::poly hindley_milner(union_find<type::mono>& types, const context& ctx, con
   type::mono t = e.apply<type::mono>( algorithm_w{types}, ctx);
 
   t = represent(types, t);
-  return generalize(ctx, t, dangerous(t) );
+
+  // restrict quantification for let bindings
+  if(e.is<ast::let>() ) {
+	return generalize(ctx, t, dangerous(t) );
+  } else {
+	return generalize(ctx, t);
+  }
   
 }
 
