@@ -16,6 +16,7 @@ namespace ast {
   struct app;					// applications
   struct let;					// local defintions
   struct seq;                   // sequence of computations
+  struct cond;					// conditionals
   struct expr;					// expression
   
   template<class T>
@@ -23,16 +24,25 @@ namespace ast {
 	T value;
   };
 
-  // fixpoint combinator
-  struct fixpoint;
-
-  // io monad bind
-  struct bind;
-
-  template<> struct lit<fixpoint> { };
-  template<> struct lit<bind> { };  
-
+  // void is not inhabited
   template<> struct lit<void> { };
+
+  
+  // fixpoint combinator
+  struct fix_type;
+
+  // io monad bind/return
+  struct bind_type;
+  struct return_type;
+
+  // conditionals
+  struct if_type;
+  
+  template<> struct lit<fix_type> { };
+  template<> struct lit<bind_type> { };
+  template<> struct lit<return_type> { };
+  template<> struct lit<if_type> { };  
+  
   
   struct var : symbol {
 	using symbol::symbol;
@@ -60,11 +70,12 @@ namespace ast {
   };
 
 
-   struct seq {
-
+  struct seq {
+	
 	// haskell's id <- def
 	struct with;
-
+	struct ret;
+	
 	struct term; 
 	
 	vec<term> terms;
@@ -73,13 +84,37 @@ namespace ast {
 	expr monad() const;
 	
   };
+
+  
+  struct cond {
+	ref<expr> test;
+	ref<expr> conseq;
+	ref<expr> alt;
+
+	// equivalent application: (if test conseq alt)
+	expr app() const;
+  };
   
  
   // TODO lists
-  struct expr : variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
-                         lit<fixpoint>,
-						 seq,
-						 var, abs, app, let> {
+  struct expr : variant<
+	
+	// literals
+	lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>, 
+
+	// helper combinators for type-checking
+	lit<fix_type>, lit<bind_type>, lit<return_type>, lit<if_type>,
+	
+	// core expressions
+	var, abs, app, let,
+	
+	// sequences
+	seq,
+
+	// conditions
+	cond>
+
+  {
 	using variant::variant;
   };
 
@@ -91,7 +126,7 @@ namespace ast {
 	with(const var& id, const expr& e = {} );
   };
 
-
+  
   struct seq::term : variant<expr, with> {
 	using variant::variant;
   };

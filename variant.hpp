@@ -279,6 +279,8 @@ public:
 	return apply<bool>(equals(), other);
   }
 
+  
+
   bool operator<(const variant& other) const {
     if( id < other.id ) return true;
     if( id == other.id && apply<bool>(compare(), other)) return true;

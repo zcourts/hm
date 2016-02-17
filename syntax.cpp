@@ -18,26 +18,32 @@ static struct {
   std::string def = "def";
   
   std::string type = "type";
-  std::string do_ = "do";
+  std::string seq = "do";
   std::string with = "with";
+  std::string ret = "return";	// TODO this one is not exactly a keyword, is it ?
+  std::string cond = "if";
   
-  std::set<std::string> all = {abs, let, def, type, do_, with};
+  std::set<std::string> all = {abs, let, def, type, seq, with, ret, cond};
   
 } keyword;
 
 
 // core expressions
 static ast::expr transform_expr(const sexpr::expr& e);
-static ast::expr transform_let(const sexpr::list& e);
-static ast::expr transform_abs(const sexpr::list& e);
+
+
+static ast::let transform_let(const sexpr::list& e);
+static ast::abs transform_abs(const sexpr::list& e);
+static ast::app transform_app(const sexpr::list& e);
 static ast::var transform_var(const sexpr::expr& e);
 
-// 
-static ast::expr transform_do(const sexpr::list& e);
+
+// sequences and conditionals
+static ast::seq transform_seq(const sexpr::list& e);
+static ast::cond transform_cond(const sexpr::list& e);
 
 
 struct match_expr {
-
 
   ast::expr operator()(const symbol& self) const {
 	return transform_var(self);
@@ -86,29 +92,20 @@ struct match_expr {
 		return transform_abs(self);
 	  }
 
-      if( s == keyword.do_ ) {
-		return transform_do(self);
+      if( s == keyword.seq ) {
+		return transform_seq(self);
 	  }
-      
-	  // TODO quote/lists
+
+	  if( s == keyword.cond ) {
+		return transform_cond(self);
+	  }
+	  
+	  // TODO quote/lists ?
 	}
 
 	// function application
-	vec<ast::expr> terms;
+	return transform_app(self);
 
-	// transform each expr
-	std::transform(self.begin(), self.end(),
-				   std::back_inserter(terms), transform_expr);
-	
-	// first must be a lambda or a variable
-	if( terms[0].is<ast::abs>() || terms[0].is<ast::var>() || terms[0].is<ast::app>() ) {
-	  // good
-	} else {
-	  throw syntax_error("expected lambda or variable in function application");
-	}
-
-	vec<ast::expr> args(terms.begin() + 1, terms.end());
-	return ast::app{ shared<ast::expr>(terms[0]), args };
   }
 
 
@@ -116,7 +113,28 @@ struct match_expr {
 };
 
 
-static ast::expr transform_let(const sexpr::list& e) {
+static ast::app transform_app(const sexpr::list& self) {
+
+  // function application
+  vec<ast::expr> terms;
+
+  // transform each expr
+  std::transform(self.begin(), self.end(),
+				 std::back_inserter(terms), transform_expr);
+	
+  // first must be a lambda or a variable
+  if( terms[0].is<ast::abs>() || terms[0].is<ast::var>() || terms[0].is<ast::app>() ) {
+	// good
+  } else {
+	throw syntax_error("expected lambda or variable in function application");
+  }
+
+  vec<ast::expr> args(terms.begin() + 1, terms.end());
+  return ast::app{ shared<ast::expr>(terms[0]), args };
+}
+
+
+static ast::let transform_let(const sexpr::list& e) {
 
   assert(!e.empty() && e[0].is<symbol>() && e[0].as<symbol>() == keyword.let );
   
@@ -138,8 +156,8 @@ static ast::expr transform_let(const sexpr::list& e) {
 }
 
 
-static ast::expr transform_abs(const sexpr::list& e) {
-  assert( !e.empty() && e[0].is<symbol>() && e[0].as<symbol>() == keyword.abs );
+static ast::abs transform_abs(const sexpr::list& e) {
+  assert(!e.empty() && e[0].is<symbol>() && e[0].as<symbol>() == keyword.abs );
   
   if( e.size() != 3 ) {
 	throw syntax_error("function expression");
@@ -166,56 +184,19 @@ static ast::expr transform_abs(const sexpr::list& e) {
   return res;
 }
 
-template<class Iterator>
-static ast::expr transform_do(Iterator first, Iterator last) {
 
 
-  if( first + 1 == last ) {
-	// base case: just replace expression
-	return transform_expr(*first);
-	
-  } else {
-	// bind
-
-	// TODO FIXME optimize symbol lookup + generate unique symbol ? or prevent using "_"
-	ast::var id = {"_"};
-	ast::expr value; 
-	
-	if( first->template is<sexpr::list>() ) {
-
-	  
-	  auto& self = first->template as<sexpr::list>();
-
-	  if( self.empty() ) throw syntax_error("bad do syntax");
-
-	  // with
-	  if( self[0].template is<symbol>() && self[0].template as<symbol>() == keyword.with ) {
-
-		if( self.size() != 2 && self.size() != 3) throw syntax_error("bad with syntax");
-		if( !self[1].template is<symbol>() )  throw syntax_error("symbol expected for with-binding");
-
-		// TODO FIXME optimize lookup
-		id = {self[1].template as<symbol>().name()};
-		value = self.size() == 3 ? transform_expr( self[2] ) : id;
-	  }
-	}
-
-	// non-with binding: just bind current expr 
-	if( !value ) {
-	  value = transform_expr(*first);
-	}
-	
-	ast::abs lambda = { {id}, shared<ast::expr>(transform_do(first + 1, last)) };
-	ast::app call = { shared<ast::expr>( ast::var("bind") ),
-					  {value, lambda} };
-
-	return call;
-  }
+static ast::cond transform_cond(const sexpr::list& self) {
+  assert(!self.empty() && self[0].is<symbol>() && self[0].as<symbol>() == keyword.cond );
   
+  if(self.size() != 4) throw syntax_error("bad 'if' syntax"); 
+
+  return { shared<ast::expr>(transform_expr(self[1])),
+	  shared<ast::expr>(transform_expr(self[2])),
+	  shared<ast::expr>(transform_expr(self[3])) };
 }
 
-
-static ast::expr transform_do(const sexpr::list& e) {
+static ast::seq transform_seq(const sexpr::list& e) {
 
   ast::seq res;
   
@@ -223,25 +204,36 @@ static ast::expr transform_do(const sexpr::list& e) {
 
 	ast::seq::term term;
 	
-	// with 
 	if(it->is<sexpr::list>() ) {
 
 	  auto& self = it->as<sexpr::list>();
 
+	  // with 
 	  if( !self.empty() && self[0] == keyword.with ) {
+		if(term && it + 1 == end) throw syntax_error("'with' cannot end a sequence");
+		
 		if( self.size() != 2 && self.size() != 3) throw syntax_error("bad 'with' syntax");
 		ast::var id = transform_var( self[1] );
 		
 		ast::seq::with with(id, self.size() == 2 ? id : transform_expr(self[2]));
 		term = with;
-	  }
-	  
-	}
 
-	if(term && it + 1 == end) {
-	  throw syntax_error("'with' cannot end sequence");
+	  }
+
+	  // return 
+	  if( !self.empty() && self[0] == keyword.ret ) {
+		if(term && it + 1 != end) throw syntax_error("'return' must end a sequence");
+		
+		ast::app app = transform_app(self);
+		
+		static ast::lit<ast::return_type> ret;
+		app.func = shared<ast::expr>(ret);
+		
+		term = ast::expr(app);
+	  }
 	}
 	
+	// regular expression
 	if(!term) {
 	  term = transform_expr(*it);
 	}
@@ -324,6 +316,8 @@ struct transform_constructor {
   
 };
 
+
+
 // data
 static ast::type transform_type(const sexpr::list& list) {
   assert( !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.type);
@@ -373,6 +367,20 @@ static ast::type transform_type(const sexpr::list& list) {
   return res;
 }
 
+
+ast::expr ast::cond::app() const {
+
+  static lit<if_type> if_;
+
+  ast::app res;
+
+  res.func = shared<ast::expr>(if_);
+  res.args.push_back( *test );
+  res.args.push_back( *conseq );
+  res.args.push_back( *alt );
+
+  return res;
+}
 
 
 

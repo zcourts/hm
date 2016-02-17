@@ -22,13 +22,13 @@ namespace ast {
 	static app make(const expr& def, var id, const expr& e)  {
 
 	  // TODO make these configurable ?
-	  static var bind("bind");
+	  static lit<bind_type> bind;
 	  static var none("_");	  
 
 	  if(!id.name()) id = none;
 	  
 	  abs lambda = { {id}, shared<expr>(e) };
-	  return app { shared<expr>( bind ), {def, lambda} };
+	  return app { shared<expr>(bind), {def, lambda} };
 	}
 	
   };
@@ -58,8 +58,8 @@ namespace ast {
 
   ref<expr> let::rec() const {
 
-	static ast::lit<ast::fixpoint> fix;
-
+	static ast::lit<ast::fix_type> fix;
+	
 	// (fix (lambda (id) body))
 	ast::app app;
     app.func = shared<ast::expr>( fix );

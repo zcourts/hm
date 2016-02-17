@@ -14,12 +14,38 @@
 namespace type {
 
   template<>
-  struct traits<ast::fixpoint> {
+  struct traits<ast::fix_type> {
     static type::poly type() {
-      static type::var v;
-      static context ctx;
-      static type::poly p = generalize(ctx, (v >>= v) >>= v);
-      return p;
+      static type::var a;
+      return generalize({}, (a >>= a) >>= a);
+    }
+  };
+  
+
+  template<>
+  struct traits<ast::bind_type> {
+    static type::poly type() {
+	  using namespace type;
+      static var a, b;
+      return generalize({}, io(a) >>= (a >>= io(b)) >>= io(b));
+    }
+  };
+
+  template<>
+  struct traits<ast::return_type> {
+    static type::poly type() {
+	  using namespace type;
+      static var a;
+      return generalize({}, a >>= io(a) );
+    }
+  };
+
+  template<>
+  struct traits<ast::if_type> {
+    static type::poly type() {
+	  using namespace type;
+      static var a;
+      return generalize({}, boolean >>= a >>= a >>= a);
     }
   };
 
@@ -574,6 +600,11 @@ struct algorithm_w {
   // do notation: typecheck desugared expression
   type::mono operator()(const ast::seq& self, const context& e) const {
 	return self.monad().apply<type::mono>(*this, e);
+  }
+
+  // conditionals: typecheck equivalent application
+  type::mono operator()(const ast::cond& self, const context& e) const {
+	return self.app().apply<type::mono>(*this, e);
   }
   
 };

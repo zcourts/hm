@@ -670,27 +670,10 @@ struct hm_handler {
 	ctx[ "-" ] = mono( integer >>= integer >>= integer);
 	ctx[ "=" ] = mono( integer >>= integer >>= boolean);
 
-	// this is just for type inference purpose
-	{
-	  var v;
-	  ctx[ "if" ] = generalize(ctx, boolean >>= v >>= v >>= v);
-
-	}
 
     static type::abs list("list", 1);
 	using type::ref;
 	
-    {
-      var a;
-      ctx["return"] = generalize(ctx, a >>= io(a) );
-    }
-
-
-    {
-      var a, b;
-      ctx["bind"] = generalize(ctx, io(a) >>= (a >>= io(b)) >>= io(b) );
-    }
-
     {
       var a;
       ctx["!"] = generalize(ctx, ref(a) >>= a );
