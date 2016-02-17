@@ -13,17 +13,17 @@
 
 
 static struct {
-  std::string abs = "fn";
-  std::string let = "let";
-  std::string def = "def";
+  symbol abs = "fn";
+  symbol let = "let";
+  symbol def = "def";
   
-  std::string type = "type";
-  std::string seq = "do";
-  std::string with = "with";
-  std::string ret = "return";	// TODO this one is not exactly a keyword, is it ?
-  std::string cond = "if";
+  symbol type = "type";
+  symbol seq = "do";
+  symbol with = "with";
+  symbol ret = "return";	// TODO this one is not exactly a keyword, is it ?
+  symbol cond = "if";
   
-  std::set<std::string> all = {abs, let, def, type, seq, with, ret, cond};
+  std::set<symbol> all = {abs, let, def, type, seq, with, ret, cond};
   
 } keyword;
 
@@ -136,7 +136,7 @@ static ast::app transform_app(const sexpr::list& self) {
 
 static ast::let transform_let(const sexpr::list& e) {
 
-  assert(!e.empty() && e[0].is<symbol>() && e[0].as<symbol>() == keyword.let );
+  assert(!e.empty() && e[0] == keyword.let );
   
   if( e.size() != 4 ) {
 	throw syntax_error("local variable definition");
@@ -157,7 +157,7 @@ static ast::let transform_let(const sexpr::list& e) {
 
 
 static ast::abs transform_abs(const sexpr::list& e) {
-  assert(!e.empty() && e[0].is<symbol>() && e[0].as<symbol>() == keyword.abs );
+  assert(!e.empty() && e[0] == keyword.abs );
   
   if( e.size() != 3 ) {
 	throw syntax_error("function expression");
@@ -187,7 +187,7 @@ static ast::abs transform_abs(const sexpr::list& e) {
 
 
 static ast::cond transform_cond(const sexpr::list& self) {
-  assert(!self.empty() && self[0].is<symbol>() && self[0].as<symbol>() == keyword.cond );
+  assert(!self.empty() && self[0] == keyword.cond );
   
   if(self.size() != 4) throw syntax_error("bad 'if' syntax"); 
 
@@ -197,7 +197,8 @@ static ast::cond transform_cond(const sexpr::list& self) {
 }
 
 static ast::seq transform_seq(const sexpr::list& e) {
-
+  assert(!e.empty() && e[0] == keyword.seq );
+  
   ast::seq res;
   
   for(auto it = e.begin() + 1, end = e.end(); it != end; ++it) {
@@ -251,7 +252,7 @@ static ast::expr transform_expr(const sexpr::expr& e) {
 
 
 static ast::def transform_def(const sexpr::list& list) {
-  assert( !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.def );
+  assert( !list.empty() && list[0] == keyword.def );
   
   if( list.size() != 3 ) {
 	throw syntax_error("toplevel variable definition");
@@ -275,7 +276,7 @@ static ast::var transform_var(const sexpr::expr& e) {
   
   auto it = keyword.all.find( s.name() );
   if(it != keyword.all.end() ) {
-	throw syntax_error( *it + " is a reserved keyword");
+	throw syntax_error( std::string(it->name()) + " is a reserved keyword");
   }
 
   return {s.name()};
@@ -297,7 +298,7 @@ struct transform_constructor {
 	}
 
 	ast::type::constructor res;
-	res.id = self[0].as<symbol>().name();
+	res.id = self[0].as<symbol>();
 
 	for(unsigned i = 1, n = self.size(); i < n; ++i) {
 	  if(!self[i].is<symbol>()) {
@@ -320,7 +321,7 @@ struct transform_constructor {
 
 // data
 static ast::type transform_type(const sexpr::list& list) {
-  assert( !list.empty() && list[0].is<symbol>() && list[0].as<symbol>() == keyword.type);
+  assert( !list.empty() && list[0] == keyword.type);
 
   // TODO split declaration/definition
   if( list.size() < 3 ) {
@@ -330,7 +331,7 @@ static ast::type transform_type(const sexpr::list& list) {
   ast::type res;
 
   if( list[1].is<symbol>() ) {
-	res.id = list[1].as<symbol>().name();
+	res.id = list[1].as<symbol>();
   } else if( list[1].is<sexpr::list>() ) {
 	auto& self = list[1].as<sexpr::list>();
 
@@ -343,7 +344,7 @@ static ast::type transform_type(const sexpr::list& list) {
 	}
 
 	// datatype identifier
-	res.id = self[0].as<symbol>().name();
+	res.id = self[0].as<symbol>();
 
 	// datatype args
 	for(unsigned i = 1, n = self.size(); i < n; ++i) {

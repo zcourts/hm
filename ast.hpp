@@ -46,6 +46,7 @@ namespace ast {
   
   struct var : symbol {
 	using symbol::symbol;
+	using symbol::operator=;
   };
 
 
