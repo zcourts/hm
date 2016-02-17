@@ -235,9 +235,40 @@ static ast::expr transform_do(Iterator first, Iterator last) {
   
 }
 
+
 static ast::expr transform_do(const sexpr::list& e) {
 
-  ast::expr res = transform_do(e.begin() + 1, e.end());
+  ast::seq res;
+  
+  for(auto it = e.begin() + 1, end = e.end(); it != end; ++it) {
+
+	ast::seq::term term;
+	
+	// with 
+	if(it->is<sexpr::list>() ) {
+
+	  auto& self = it->as<sexpr::list>();
+
+	  if( !self.empty() && self[0] == keyword.with ) {
+		if( self.size() != 2 && self.size() != 3) throw syntax_error("bad 'with' syntax");
+		ast::var id = transform_var( self[1] );
+		
+		ast::seq::with with(id, self.size() == 2 ? id : transform_expr(self[2]));
+		term = with;
+	  }
+	  
+	}
+
+	if(term && it + 1 == end) {
+	  throw syntax_error("'with' cannot end sequence");
+	}
+	
+	if(!term) {
+	  term = transform_expr(*it);
+	}
+
+	res.terms.push_back(term);
+  }
   
   return res;
 }

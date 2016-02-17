@@ -51,14 +51,42 @@ namespace ast {
 	ref<expr> body;
   };
 
+
+   struct seq {
+
+	// haskell's id <- def
+	struct with;
+
+	struct term; 
+	
+	vec<term> terms;
+	
+	// convert to monadic style
+	expr monad() const;
+	
+  };
+  
  
   // TODO lists
   struct expr : variant< lit<void>, lit<int>, lit<double>, lit<bool>, lit<std::string>,
                          lit<fixpoint>,
+						 seq,
 						 var, abs, app, let> {
 	using variant::variant;
   };
-  
+
+
+  struct seq::with {
+	var id;
+	expr def;
+	
+	with(const var& id, const expr& e = {} );
+  };
+
+
+  struct seq::term : variant<expr, with> {
+	using variant::variant;
+  };
   
   
   // variable definitions
@@ -83,6 +111,7 @@ namespace ast {
 	vec< constructor > def;
   };
 
+ 
 
   // complete syntax
   using node = variant<expr, def, type>;

@@ -566,7 +566,10 @@ struct algorithm_w {
   }
 
 
- 
+  // do notation: typecheck desugared expression
+  type::mono operator()(const ast::seq& self, const context& e) const {
+	return self.monad().apply<type::mono>(*this, e);
+  }
   
 };
 
