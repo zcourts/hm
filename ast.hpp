@@ -26,7 +26,12 @@ namespace ast {
   // fixpoint combinator
   struct fixpoint;
 
+  // io monad bind
+  struct bind;
+
   template<> struct lit<fixpoint> { };
+  template<> struct lit<bind> { };  
+
   template<> struct lit<void> { };
   
   struct var : symbol {
@@ -49,6 +54,9 @@ namespace ast {
 	var id;
 	ref<expr> value;
 	ref<expr> body;
+
+	// adapted value for typechecking recursive functions 
+	ref<expr> rec() const;
   };
 
 

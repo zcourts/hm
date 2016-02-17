@@ -1,8 +1,8 @@
 
 ;; function defintions are recursive by default
-(def fact (lambda (n) 
+(def fact (fn (n) 
             (if (= n 0) 1
-              (* n (fact (- n 1))))))
+                (* n (fact (- n 1))))))
 
 ;; variable definition is not
 

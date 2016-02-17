@@ -129,28 +129,7 @@ static ast::expr transform_let(const sexpr::list& e) {
   res.id = transform_var(e[1]);
 
   // definition
-  ast::expr what = transform_expr(e[2]);
-  
-  // recursive functions by default
-  if( what.is<ast::abs>())   {
-    static ast::lit<ast::fixpoint> fix;
-    
-    // (fix (lambda (id) body))
-    ast::app app;
-    app.func = shared<ast::expr>( fix );
-    
-    // (lambda (id) body)
-    ast::abs wrap;
-    wrap.args.push_back(res.id);
-    wrap.body = shared<ast::expr>(what);
-
-    app.args.push_back(wrap);
-    
-    what = app;
-  }
-
-  // definition
-  res.value = shared<ast::expr>( what );
+  res.value = shared<ast::expr>(  transform_expr(e[2]) );
 
   // body
   res.body = shared<ast::expr>( transform_expr(e[3]));

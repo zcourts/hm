@@ -530,11 +530,16 @@ struct algorithm_w {
   
 
   // let
-  type::mono operator()(const ast::let& let, const context& c) const {
-	debug_raii debug("let", let.id);
+  type::mono operator()(const ast::let& self, const context& c) const {
+	debug_raii debug("let", self.id);
+
+	ref<ast::expr> value = self.value;
+
+	// functions are recursive by default
+	if(value->is<ast::abs>()) { value = self.rec(); }
 	
 	// infer type for definition
-	type::mono def = let.value->apply<type::mono>(*this, c);
+	type::mono def = value->apply<type::mono>(*this, c);
 
 	// enriched context with local definition
 	context sub(&c);
@@ -545,10 +550,10 @@ struct algorithm_w {
 	
 	type::poly gen = generalize(c, def, exclude);
 	
-	sub.set(let.id, gen);
+	sub.set(self.id, gen);
 	
 	// infer type for the body given our assumption
-	type::mono body = let.body->apply<type::mono>(*this, sub);
+	type::mono body = self.body->apply<type::mono>(*this, sub);
 
     debug.type = body;
 	return body;

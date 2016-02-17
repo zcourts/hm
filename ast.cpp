@@ -55,4 +55,23 @@ namespace ast {
   }
  
 
+
+  ref<expr> let::rec() const {
+
+	static ast::lit<ast::fixpoint> fix;
+
+	// (fix (lambda (id) body))
+	ast::app app;
+    app.func = shared<ast::expr>( fix );
+    
+    // (lambda (id) body)
+    ast::abs wrap;
+    wrap.args.push_back(id);
+    wrap.body = value;
+	
+    app.args.push_back(wrap);
+	
+	return shared<ast::expr>(app);
+  }
+  
 }
