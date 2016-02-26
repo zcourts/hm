@@ -117,6 +117,7 @@ namespace type {
   }
 	
   const lit integer = traits<int>::type().as<lit>();
+  const lit real = traits<double>::type().as<lit>();  
   const lit boolean = traits<bool>::type().as<lit>();
   const lit unit = traits<void>::type().as<lit>();
 

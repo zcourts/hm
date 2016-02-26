@@ -121,6 +121,7 @@ namespace type {
 
   // some helpers
   extern const lit integer;
+  extern const lit real;  
   extern const lit boolean;
   extern const lit unit;
 

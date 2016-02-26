@@ -155,6 +155,14 @@ bool context::bound(const type::var& v) const {
 }
 
 
+// bool context::bound(const ast::var& v) const {
+//   auto it = table.find(v);
+//   if( it != table.end() ) return true;
+
+//   if( parent ) return parent->bound(v);
+//   return false;
+// }
+
 
 
 

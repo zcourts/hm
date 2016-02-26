@@ -47,7 +47,11 @@ public:
 	const table_type::value_type& operator*() const;
   };
 
+  // is a type variable bound in context ?
   bool bound(const type::var& ) const;
+
+  // bool bound(const ast::var& ) const;
+
   
   iterator begin() const;
   iterator end() const;

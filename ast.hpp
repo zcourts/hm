@@ -133,7 +133,7 @@ namespace ast {
   };
   
   
-  // variable definitions
+  // toplevel definitions
   struct def {
 	var id;
 	ref<expr> value;
@@ -157,7 +157,7 @@ namespace ast {
 
  
 
-  // complete syntax
+  // toplevels
   using node = variant<expr, def, type>;
   
 }
