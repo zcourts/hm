@@ -36,6 +36,11 @@ struct sexpr_parser {
 };
 
 
+static code::type convert(type::mono x) {
+  if(x != type::real ) throw std::runtime_error("unimplemented");
+  return llvm::Type::getDoubleTy( llvm::getGlobalContext() );
+}
+
 struct variables {
   variables* parent;
   
@@ -59,10 +64,7 @@ struct variables {
   
   std::map<ast::var, code::value> table;
 
-  static code::type convert(type::mono x) {
-	if(x != type::real ) throw std::runtime_error("unimplemented");
-	return llvm::Type::getDoubleTy( llvm::getGlobalContext() );
-  }
+ 
   
   code::value find(const ast::var& v) {
 
@@ -354,7 +356,7 @@ struct hm_handler {
 	  if(t != type::real) throw std::runtime_error("unimplemented");
 	  
 	  using namespace llvm;
-	  auto type = Type::getDoubleTy(getGlobalContext());
+	  code::type type = convert(t);
 
 	  bool is_constant = false;
 	  
@@ -363,12 +365,13 @@ struct hm_handler {
 	  // TODO look for existing definition and store 
 	  {
 		auto module = make_module("global");
+
 		
 		auto global = new GlobalVariable(*module,
 										 type,
 										 is_constant,
 										 GlobalValue::ExternalLinkage,
-										 ConstantFP::get(getGlobalContext(), APFloat(0.0)),
+										 ConstantAggregateZero::get(type),
 										 self.id.name());
 		module->dump();
 		jit.add(std::move(module));
