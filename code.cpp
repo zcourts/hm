@@ -14,16 +14,20 @@ namespace code {
 
   using namespace llvm;
 
-  value constant(const double& self) {
+  constant make_constant(const double& self) {
 	return ConstantFP::get(getGlobalContext(), APFloat(self));
   }
 
+  constant make_constant(const char* self) {
+	return llvm::ConstantDataArray::getString(llvm::getGlobalContext(), self);
+  }
+  
   // TODO sizeof int ?
-  value constant(const int& self) {
+  constant make_constant(const int& self) {
 	return ConstantInt::get(getGlobalContext(), APInt(64, self, true));
   }
   
-  value constant(const bool& self) {
+  constant make_constant(const bool& self) {
 	return ConstantInt::get(getGlobalContext(), APInt(1, self, false));
   }
   
@@ -56,7 +60,7 @@ namespace code {
   }
 
 
-  jit::symbol jit::find_mangled(const std::string& name) {
+  jit::symbol jit::find_symbol_mangled(const std::string& name) {
 
 	// search for symbols in reverse
 	for (auto h : make_range(modules.rbegin(), modules.rend()))
@@ -78,7 +82,7 @@ namespace code {
 	auto resolver = orc::createLambdaResolver([&](const std::string& name) {
 		std::cerr << "jit resolver: " << name << std::endl;
 		
-		if (auto sym = find_mangled(name)) {
+		if (auto sym = find_symbol_mangled(name)) {
 		  return RuntimeDyld::SymbolInfo(sym.getAddress(), sym.getFlags());
 		}
 		return RuntimeDyld::SymbolInfo(nullptr);
@@ -99,9 +103,10 @@ namespace code {
   }
 
   jit::symbol jit::find(const std::string& name) {
-    return find_mangled(mangle(name));
+    return find_symbol_mangled(mangle(name));
   }
-  
+
+ 
 
   std::string jit::mangle(const std::string& name) const {
     std::string res;

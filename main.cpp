@@ -16,6 +16,7 @@
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Transforms/Scalar.h"
 
+
 struct sexpr_parser {
   std::function< void (const sexpr::list& prog ) > handler;
 
@@ -36,9 +37,22 @@ struct sexpr_parser {
 };
 
 
-static code::type convert(type::mono x) {
-  if(x != type::real ) throw std::runtime_error("unimplemented");
-  return llvm::Type::getDoubleTy( llvm::getGlobalContext() );
+
+static type::mono cstring = type::traits<const char*>::type();
+
+
+static code::type convert(type::mono t) {
+  static std::map<type::mono, code::type> table = {
+	{type::real,  code::make_type<double>()}, 
+	{type::integer,  code::make_type< llvm::types::i<64> >()},
+	{type::boolean,  code::make_type< llvm::types::i<2> > ()},
+	{cstring, code::make_type<const char*>()} 
+  };
+  
+  auto it = table.find(t);
+  if( it != table.end() ) return it->second;
+
+  throw std::runtime_error("type conversion unimplemented");
 }
 
 struct variables {
@@ -75,8 +89,7 @@ struct variables {
 
 	if( parent ) return parent->find(v);
 
-	// unbound variables are implicitly globals
-
+	// unbound variables are implicitly external globals
 	type::poly p = ctx.find(v);
 	if( p.is<type::scheme>() ) throw std::runtime_error("can't codegen with type schemes");
 	
@@ -95,6 +108,47 @@ struct variables {
   }
   
 };
+
+
+static std::vector<code::type> collect(code::type& ret, const type::mono& t, std::vector<code::type>&& args = {}) {
+  if(t.is<type::app>() && t.as<type::app>()->func == type::func) {
+	// function type
+	type::app app = t.as<type::app>();
+	
+	args.push_back( convert(app->args[0]) );
+	return collect(ret, app->args[1], std::move(args));
+  } else {
+	// this is return type;
+	ret = convert(t);
+	return args;
+  }
+}
+
+static code::func declare(llvm::Module* module, const std::string& name, code::func_type ft) {
+
+  // code::func_type ft = llvm::FunctionType::get(ret, args, false);
+  return llvm::Function::Create(ft, llvm::Function::ExternalLinkage, name, module);
+  
+}
+	
+
+static std::map<std::string, code::func_type> prototype;
+
+static code::func get_or_declare(llvm::Module* module, const std::string& name) {
+
+  // try module first
+  code::func res = module->getFunction(name);
+  if(res) return res;
+
+  // declare function
+  auto it = prototype.find(name);
+  if(it != prototype.end() ) {
+	return declare(module, name, it->second);
+  }
+
+  // derp
+  throw std::runtime_error("unknown function");
+}
 
 
 struct hm_handler {
@@ -223,35 +277,65 @@ struct hm_handler {
 	  throw std::runtime_error("unimplemented");
 	}
 
+
 	// toplevel expression
 	void operator()(const ast::expr& self, const type::poly& p) const {
 
 	  auto module = make_module("tmp");
 
-	  if( p.is<type::scheme>() ) throw std::runtime_error("need a fixed type");
-
-	  if( p.as<type::mono>() != type::real ) {
-		throw std::runtime_error("only reals yo");
+	  if( p.is<type::scheme>() ){
+		throw std::runtime_error("need a fixed type");
 	  }
 
+	  code::func printf = get_or_declare(module.get(), "printf");
+
 	  variables vars{module.get(), ctx};
+
+
+	  static std::map<type::mono, const char*> format = {
+		{ type::integer, "%d" },
+		{ type::real, "%f" },
+		{ type::boolean, "%i" }
+	  };
+
+	  
+	  code::value fmt = nullptr;
+
+	  auto it = format.find(p.as<type::mono>());
+	  if(it != format.end()) {
+		fmt = new llvm::GlobalVariable(*module,
+									   code::make_type<const char*>(),
+									   true,
+									   llvm::GlobalValue::PrivateLinkage,
+									   code::make_constant(it->second),
+									   "fmt");
+	  }
 	  
 	  anon_expr(module.get(), [&](llvm::IRBuilder<>& builder) {
-		  return self.apply<code::value>(codegen_expr{builder, vars});
+		  code::value res = self.apply<code::value>(codegen_expr{builder, vars});
+		  assert(res->getType() == convert(p.as<type::mono>()));
+		  
+		  if( fmt ) builder.CreateCall(printf, {fmt, res});
+		  // return res;
 		});
 	  
 	  module->dump();
 
-	  //
+	  // eval
 
 	  auto handle = jit.add(std::move(module));
 	  auto sym = jit.find("__anon_expr");
 	  if(!sym) throw std::logic_error("symbol not found");
-	  using ptr_type = double (*)();
 	  
+	  using ptr_type = void (*)();
 	  auto ptr = (ptr_type)(sym.getAddress());
-	  double res = ptr();
-	  std::cout << "eval: " << res << std::endl;
+	  
+	  std::cout << "eval: ";
+	  ptr();
+	  std::cout << std::endl;
+	  
+	  jit.remove(handle);
+	  
 	}
 
 
@@ -261,15 +345,15 @@ struct hm_handler {
 	  variables& vars;
 	  
 	  code::value operator()(const ast::lit<double>& self) const {
-		return code::constant(self.value);
+		return code::make_constant(self.value);
 	  }
 
 	  code::value operator()(const ast::lit<int>& self) const {
-		return code::constant(self.value);
+		return code::make_constant(self.value);
 	  }
 
 	  code::value operator()(const ast::lit<bool>& self) const {
-		return code::constant(self.value);
+		return code::make_constant(self.value);
 	  }
 
 	  code::value operator()(const ast::var& self) const {
@@ -292,6 +376,8 @@ struct hm_handler {
 	  }
 	  
 	};
+
+
 
 	
 	template<class F>
@@ -323,6 +409,7 @@ struct hm_handler {
 	
 
 	std::unique_ptr<llvm::Module> make_module(const std::string& name) const {
+
 	  std::unique_ptr<llvm::Module> module;
 	  module.reset( new llvm::Module(name, llvm::getGlobalContext() ) );
 	  module->setDataLayout(jit.layout);
@@ -344,6 +431,7 @@ struct hm_handler {
 
 	  return module;
 	}
+
 	
 	void operator()(const ast::def& self, const type::poly& p) const {
 
@@ -353,8 +441,6 @@ struct hm_handler {
 
 	  type::mono t = p.as<type::mono>();
 
-	  if(t != type::real) throw std::runtime_error("unimplemented");
-	  
 	  using namespace llvm;
 	  code::type type = convert(t);
 
@@ -362,7 +448,7 @@ struct hm_handler {
 	  
 	  // http://stackoverflow.com/questions/19866349/error-when-creating-a-global-variable-in-llvm
 	  
-	  // TODO look for existing definition and store 
+	  // TODO look for existing definition and store ?
 	  {
 		auto module = make_module("global");
 
@@ -412,6 +498,7 @@ struct hm_handler {
 	}
 	
 
+
   };
 
 
@@ -437,6 +524,12 @@ struct hm_handler {
 	catch( std::runtime_error& e) {
 	  std::cerr << "runtime error: " << e.what() << std::endl;
 	}
+	catch( std::logic_error& e) {
+	  std::cerr << "logic error (!!!): " << e.what() << std::endl;
+	}
+
+	
+
 	
   }
 
@@ -452,6 +545,16 @@ struct hm_handler {
 	  jit.reset( new code::jit );
 	}
 
+	{
+	  // expose c functions
+	  auto module = codegen{*jit, ctx}.make_module("libc");
+
+	  prototype["printf"] = code::make_type< void (const char*, ...) >();
+	  module->dump();
+	  
+	  jit->add(std::move(module));
+	}
+	
 	
 	using namespace type;
 	ctx[ "+" ] = mono( integer >>= integer >>= integer);

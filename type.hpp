@@ -110,6 +110,14 @@ namespace type {
 	
   };
 
+  template<> struct traits<const char*> {
+	
+	static type::mono type() {
+	  return lit{"cstring"};
+	}
+	
+  };
+
   template<> struct traits<void> {
   
 	static type::mono type() {

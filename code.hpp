@@ -6,6 +6,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IR/TypeBuilder.h>
 
 // jit
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
@@ -17,6 +18,7 @@ namespace code {
 
   // some helpers
   using var = llvm::AllocaInst*;
+  using constant = llvm::Constant*;
   using func = llvm::Function*;
   using type = llvm::Type*;
   using func_type = llvm::FunctionType*;  
@@ -24,10 +26,17 @@ namespace code {
 
   
   // constants
-  value constant(const double& );
-  value constant(const int& );
-  value constant(const bool& b);
+  constant make_constant(const double& );
+  constant make_constant(const int& );
+  constant make_constant(const bool& b);
+  constant make_constant(const char* c);
+  
+  template<class T>
+  inline auto make_type() -> decltype(llvm::TypeBuilder<T, false>::get(llvm::getGlobalContext())) {
+	return llvm::TypeBuilder<T, false>::get(llvm::getGlobalContext());
+  }
 
+  
   
   // local variables
   var local(func f, const std::string& name, type t);
@@ -59,7 +68,7 @@ namespace code {
   private:
 
 	std::string mangle(const std::string& name) const;
-	symbol find_mangled(const std::string& name);
+	symbol find_symbol_mangled(const std::string& name);
 	
 	std::unique_ptr<llvm::TargetMachine> target;
   public:
