@@ -35,7 +35,65 @@ struct sexpr_parser {
 
 };
 
-static std::map<ast::var, code::value> globals;
+
+struct variables {
+  variables* parent;
+  
+  llvm::Module* module;
+  const context& ctx;
+  
+  variables(variables* parent)
+	: parent(parent),
+	  module(parent->module),
+	  ctx(parent->ctx){
+	
+  }
+
+  variables(llvm::Module* module,
+			const context& ctx)
+	: parent(nullptr),
+	  module(module),
+	  ctx(ctx) {
+
+  }
+  
+  std::map<ast::var, code::value> table;
+
+  static code::type convert(type::mono x) {
+	if(x != type::real ) throw std::runtime_error("unimplemented");
+	return llvm::Type::getDoubleTy( llvm::getGlobalContext() );
+  }
+  
+  code::value find(const ast::var& v) {
+
+	auto it = table.find(v);
+	if(it != table.end() ) {
+	  return it->second;
+	}
+
+	if( parent ) return parent->find(v);
+
+	// unbound variables are implicitly globals
+
+	type::poly p = ctx.find(v);
+	if( p.is<type::scheme>() ) throw std::runtime_error("can't codegen with type schemes");
+	
+	code::type type = convert( p.as<type::mono>() );
+
+	const bool is_constant = false;
+	code::value variable = new llvm::GlobalVariable(*module,
+													type, 
+													is_constant,
+													llvm::GlobalValue::AvailableExternallyLinkage,
+													0,
+													v.name());
+	table[v] = variable;
+
+	return variable;
+  }
+  
+};
+
 
 struct hm_handler {
 
@@ -46,9 +104,6 @@ struct hm_handler {
   
   mutable context ctx;
   mutable union_find<type::mono> types;
-
-  
-  
 
   struct type_check {
 
@@ -158,21 +213,17 @@ struct hm_handler {
 
   struct codegen {
 
-	llvm::Module& module;
-	llvm::IRBuilder<>& builder;
 	code::jit& jit;
-	// context& ctx;
-
+	const context& ctx;
 	
 	template<class T>
 	void operator()(const T&, const type::poly& p) const {
 	  throw std::runtime_error("unimplemented");
 	}
 
-
+	// toplevel expression
 	void operator()(const ast::expr& self, const type::poly& p) const {
 
-	  // toplevel expression
 	  auto module = make_module("tmp");
 
 	  if( p.is<type::scheme>() ) throw std::runtime_error("need a fixed type");
@@ -181,17 +232,31 @@ struct hm_handler {
 		throw std::runtime_error("only reals yo");
 	  }
 
-	  anon_expr(module.get(), [&](const llvm::IRBuilder<>& builder) {
-		  return self.apply<code::value>(codegen_expr{*module});
+	  variables vars{module.get(), ctx};
+	  
+	  anon_expr(module.get(), [&](llvm::IRBuilder<>& builder) {
+		  return self.apply<code::value>(codegen_expr{builder, vars});
 		});
 	  
 	  module->dump();
+
+	  //
+
+	  auto handle = jit.add(std::move(module));
+	  auto sym = jit.find("__anon_expr");
+	  if(!sym) throw std::logic_error("symbol not found");
+	  using ptr_type = double (*)();
+	  
+	  auto ptr = (ptr_type)(sym.getAddress());
+	  double res = ptr();
+	  std::cout << "eval: " << res << std::endl;
 	}
 
 
 	struct codegen_expr {
-	  llvm::Module& module;
-	  // context& ctx;
+
+	  llvm::IRBuilder<>& builder;
+	  variables& vars;
 	  
 	  code::value operator()(const ast::lit<double>& self) const {
 		return code::constant(self.value);
@@ -206,11 +271,7 @@ struct hm_handler {
 	  }
 
 	  code::value operator()(const ast::var& self) const {
-
-		// auto sym = jit.find(self.name);
-		// if(sym) {
-		//   std::cerr << "global variable" << std::endl;
-		// }
+		return builder.CreateLoad( vars.find(self), self.name() );
 	  }
 	  
 
@@ -299,23 +360,16 @@ struct hm_handler {
 	  
 	  // http://stackoverflow.com/questions/19866349/error-when-creating-a-global-variable-in-llvm
 	  
-
-	  // variable is defined, we need to set it
-	  // std::vector<code::type> args;
-	  
-	  // module.dump();
-
-	  // TODO look for variable ?
-	  
+	  // TODO look for existing definition and store 
 	  {
 		auto module = make_module("global");
 		
-		globals[self.id] = new GlobalVariable(*module,
-											  type,
-											  is_constant,
-											  GlobalValue::ExternalLinkage,
-											  ConstantFP::get(getGlobalContext(), APFloat(0.0)),
-											  self.id.name());
+		auto global = new GlobalVariable(*module,
+										 type,
+										 is_constant,
+										 GlobalValue::ExternalLinkage,
+										 ConstantFP::get(getGlobalContext(), APFloat(0.0)),
+										 self.id.name());
 		module->dump();
 		jit.add(std::move(module));
 	  }
@@ -324,18 +378,12 @@ struct hm_handler {
 
 		auto module = make_module("tmp");
 
-		auto variable = new GlobalVariable(*module,
-										   type,
-										   is_constant,
-										   GlobalValue::AvailableExternallyLinkage,
-										   0,
-										   self.id.name());
-		
+		variables vars{module.get(), ctx};
 		anon_expr(module.get(), [&](IRBuilder<>& builder) {
 			
-			auto value = self.value->apply<llvm::Value*>(codegen_expr{*module});
+			auto value = self.value->apply<llvm::Value*>(codegen_expr{builder, vars});
 			
-			builder.CreateStore(value, variable);
+			builder.CreateStore(value, vars.find(self.id) );
 			
 		  });
 		
@@ -344,7 +392,7 @@ struct hm_handler {
 		
 		auto handle = jit.add(std::move(module));
 		auto sym = jit.find("__anon_expr");
-		if(!sym) throw std::runtime_error("symbol not found");
+		if(!sym) throw std::logic_error("symbol not found");
 		using ptr_type = void (*)();
 		
 		auto ptr = (ptr_type)(sym.getAddress());
@@ -373,7 +421,7 @@ struct hm_handler {
 		const ast::node e = transform( s );
 		type::poly p = e.apply<type::poly>(type_check(), types, ctx);
 
-		e.apply( codegen{*module, *builder, *jit}, p);
+		e.apply( codegen{*jit, ctx}, p);
 		
 	  }
 	}	

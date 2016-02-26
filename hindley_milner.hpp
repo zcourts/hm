@@ -50,7 +50,8 @@ public:
   // is a type variable bound in context ?
   bool bound(const type::var& ) const;
 
-  // bool bound(const ast::var& ) const;
+  // is a variable global ?
+  bool global(const ast::var& ) const ;
 
   
   iterator begin() const;

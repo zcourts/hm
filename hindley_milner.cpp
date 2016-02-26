@@ -155,13 +155,16 @@ bool context::bound(const type::var& v) const {
 }
 
 
-// bool context::bound(const ast::var& v) const {
-//   auto it = table.find(v);
-//   if( it != table.end() ) return true;
-
-//   if( parent ) return parent->bound(v);
-//   return false;
-// }
+bool context::global(const ast::var& v) const {
+  auto it = table.find(v);
+  if( it != table.end() ) {
+	// found
+	return !parent;
+  } else {
+	if(!parent) throw std::out_of_range("unbound variable: " + std::string(v.name()));
+	return parent->global(v);
+  }
+}
 
 
 
