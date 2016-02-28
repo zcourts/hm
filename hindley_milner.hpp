@@ -26,11 +26,12 @@ class context {
   vars_type vars;
 
   // constant amortized insertions
-  table_type::iterator last = table.end();
+  // mutable table_type::iterator last;
 public:
 
   context(parent_type parent = nullptr) : parent(parent) { }
-
+  
+  
   // hierarchical
   const type::poly& find(const ast::var& var) const;
 
@@ -52,7 +53,6 @@ public:
 
   // is a variable global ?
   bool global(const ast::var& ) const ;
-
   
   iterator begin() const;
   iterator end() const;

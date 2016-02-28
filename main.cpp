@@ -55,56 +55,102 @@ static code::type convert(type::mono t) {
   throw std::runtime_error("type conversion unimplemented");
 }
 
+
+static class global_type {
+
+  // get or declare a global from/in a module
+  typedef std::function< code::value (llvm::Module* ) > declarator_type;
+
+  // id -> declarator
+  std::map<std::string, declarator_type> table;
+
+public:
+
+  // declare variable
+  void variable(const std::string& name, code::type type, bool is_constant = false) {
+	table[name] = [name, type, is_constant](llvm::Module* module) -> code::value {
+	  // TODO assert type 
+	  // try module first
+	  code::value res = module->getGlobalVariable(name);
+	  if(res) return res;
+	  
+	  // declare variable
+	  return new llvm::GlobalVariable(*module,
+									  type, 
+									  is_constant,
+									  llvm::GlobalValue::AvailableExternallyLinkage,
+									  0,
+									  name);
+	};
+  }
+
+
+  void function(const std::string& name, code::func_type type) {
+
+	table[name] = [name, type](llvm::Module* module) -> code::value {
+	  // TODO assert type
+	  // try module first
+	  code::func res = module->getFunction(name);
+	  if(res) return res;
+	
+	  return llvm::Function::Create(type, llvm::Function::ExternalLinkage, name, module);
+	};
+  }
+
+
+  // get (declare if needed) global variable from a module
+  code::value get(llvm::Module* module, const std::string& name) const {
+	auto it = table.find(name);
+	
+	if( it == table.end() ) {
+	  throw std::runtime_error("unknown global: " + name);
+	}
+	
+	return it->second(module);
+  }
+  
+  
+} global;
+
+
+// TODO this is a value store
 struct variables {
   variables* parent;
   
   llvm::Module* module;
-  const context& ctx;
   
   variables(variables* parent)
 	: parent(parent),
-	  module(parent->module),
-	  ctx(parent->ctx){
+	  module(parent->module){
 	
   }
 
-  variables(llvm::Module* module,
-			const context& ctx)
+  variables(llvm::Module* module)
 	: parent(nullptr),
-	  module(module),
-	  ctx(ctx) {
+	  module(module) {
 
   }
   
   std::map<ast::var, code::value> table;
-
- 
   
   code::value find(const ast::var& v) {
 
-	auto it = table.find(v);
-	if(it != table.end() ) {
-	  return it->second;
+	{
+	  auto it = table.find(v);
+	  if(it != table.end() ) {
+		return it->second;
+	  }
 	}
 
 	if( parent ) return parent->find(v);
 
-	// unbound variables are implicitly external globals
-	type::poly p = ctx.find(v);
-	if( p.is<type::scheme>() ) throw std::runtime_error("can't codegen with type schemes");
-	
-	code::type type = convert( p.as<type::mono>() );
-
-	const bool is_constant = false;
-	code::value variable = new llvm::GlobalVariable(*module,
-													type, 
-													is_constant,
-													llvm::GlobalValue::AvailableExternallyLinkage,
-													0,
-													v.name());
-	table[v] = variable;
-
-	return variable;
+	// unbound variables are implicitly globals
+	{
+	  code::value res = global.get(module, v.name());
+	  table[v] = res;
+	  
+	  return res;
+	}
   }
   
 };
@@ -134,22 +180,6 @@ static code::func declare(llvm::Module* module, const std::string& name, code::f
 
 static std::map<std::string, code::func_type> prototype;
 
-static code::func get_or_declare(llvm::Module* module, const std::string& name) {
-
-  // try module first
-  code::func res = module->getFunction(name);
-  if(res) return res;
-
-  // declare function
-  auto it = prototype.find(name);
-  if(it != prototype.end() ) {
-	return declare(module, name, it->second);
-  }
-
-  // derp
-  throw std::runtime_error("unknown function");
-}
-
 
 struct hm_handler {
 
@@ -175,10 +205,12 @@ struct hm_handler {
 	  type::poly p = hindley_milner(types, ctx, tmp);
 	  
 	  // add to type context
-	  ctx[tmp.id] = p;
+	  ctx.set(tmp.id, p);
 
 	  // TODO eval
 	  std::cout << self.id << " :: " << p << std::endl;
+
+
       return p;
 	}
 
@@ -287,11 +319,10 @@ struct hm_handler {
 		throw std::runtime_error("need a fixed type");
 	  }
 
-	  code::func printf = get_or_declare(module.get(), "printf");
+	  variables vars{module.get()};
 
-	  variables vars{module.get(), ctx};
-
-
+	  code::value printf = vars.find("printf");	  
+	  
 	  static std::map<type::mono, const char*> format = {
 		{ type::integer, "%d" },
 		{ type::real, "%f" },
@@ -315,7 +346,7 @@ struct hm_handler {
 		  code::value res = self.apply<code::value>(codegen_expr{builder, vars});
 		  assert(res->getType() == convert(p.as<type::mono>()));
 		  
-		  if( fmt ) builder.CreateCall(printf, {fmt, res});
+		  if( fmt ) builder.CreateCall(printf, {fmt, res });
 		  // return res;
 		});
 	  
@@ -361,12 +392,29 @@ struct hm_handler {
 	  }
 	  
 
+	  code::value operator()(const ast::app& self) const {
+		
+		code::value func = self.func->apply<code::value>(*this);
+
+		std::vector<code::value> args;
+
+		// TODO reserve
+		std::transform(self.args.begin(), self.args.end(),
+					   std::back_inserter(args), [&](const ast::expr& e) {
+						 return e.apply<code::value>(*this);
+					   });
+
+		// TODO: closures ?!
+		return builder.CreateCall(func, args);
+	  }
+	  
 	  template<class T>
 	  code::value operator()(const T& ) const {
 		throw std::runtime_error("unimplemented");
 	  }
 	};
 
+	
 	struct helper {
 	  bool is_void;
 	  code::value value;
@@ -451,14 +499,16 @@ struct hm_handler {
 	  // TODO look for existing definition and store ?
 	  {
 		auto module = make_module("global");
-
 		
-		auto global = new GlobalVariable(*module,
-										 type,
-										 is_constant,
-										 GlobalValue::ExternalLinkage,
-										 ConstantAggregateZero::get(type),
-										 self.id.name());
+		auto var = new GlobalVariable(*module,
+									  type,
+									  is_constant,
+									  GlobalValue::ExternalLinkage,
+									  ConstantAggregateZero::get(type),
+									  self.id.name());
+
+		global.variable(self.id.name(), type, is_constant);
+		
 		module->dump();
 		jit.add(std::move(module));
 	  }
@@ -467,7 +517,7 @@ struct hm_handler {
 
 		auto module = make_module("tmp");
 
-		variables vars{module.get(), ctx};
+		variables vars{module.get()};
 		anon_expr(module.get(), [&](IRBuilder<>& builder) {
 			
 			auto value = self.value->apply<llvm::Value*>(codegen_expr{builder, vars});
@@ -549,12 +599,14 @@ struct hm_handler {
 	  // expose c functions
 	  auto module = codegen{*jit, ctx}.make_module("libc");
 
-	  prototype["printf"] = code::make_type< void (const char*, ...) >();
+	  global.function("printf", code::make_type< void (const char*, ...) >());
+	  
 	  module->dump();
 	  
 	  jit->add(std::move(module));
 	}
-	
+
+	// return;
 	
 	using namespace type;
 	ctx[ "+" ] = mono( integer >>= integer >>= integer);

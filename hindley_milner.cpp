@@ -66,7 +66,9 @@ const type::poly& context::find(const ast::var& var) const {
 
 
 context& context::set(const ast::var& var, const type::poly& p) {
-  auto it = table.insert( last, std::make_pair(var, p) );
+  // TODO cache last insertion to get amortized O(1)
+  
+  auto it = table.insert( table.end(), std::make_pair(var, p) );
 
   // insertion failed
   if(it->first != var) {
@@ -83,7 +85,7 @@ context& context::set(const ast::var& var, const type::poly& p) {
 	it->second = p;
   }
   
-  last = it;
+  // last = it;
   
   if( it->second.is<type::scheme>() ) {
 	
