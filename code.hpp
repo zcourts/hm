@@ -18,7 +18,8 @@ namespace code {
   using constant = llvm::Constant*;
   using func = llvm::Function*;
   using type = llvm::Type*;
-  using func_type = llvm::FunctionType*;  
+  using func_type = llvm::FunctionType*;
+  using struct_type = llvm::StructType*;
   using value = llvm::Value*;
 
   
@@ -41,7 +42,6 @@ namespace code {
   
   
  
-
   class globals {
 
 	// get or declare a global from/in a module

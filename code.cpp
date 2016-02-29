@@ -21,7 +21,7 @@ namespace code {
   
   // TODO sizeof int ?
   constant make_constant(const int& self) {
-	return ConstantInt::get(getGlobalContext(), APInt(64, self, true));
+	return ConstantInt::get(getGlobalContext(), APInt(32, self, true));
   }
   
   constant make_constant(const bool& self) {

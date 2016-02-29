@@ -60,7 +60,7 @@ static code::type convert(type::mono t) {
   static std::map<type::mono, code::type> table = {
 	{type::unit, code::make_type< void >() },
 	{type::real,  code::make_type<sexpr::real>()},
-	{type::integer,  code::make_type< llvm::types::i<64> >()}, // 	TODO auto bitlength ?
+	{type::integer,  code::make_type< sexpr::integer >()}, // 	TODO auto bitlength ?
 	{type::boolean,  code::make_type< llvm::types::i<2> > ()},
 	{cstring, code::make_type<const char*>()} 
   };
@@ -345,7 +345,6 @@ struct hm_handler {
 		if( v->getType()->isPointerTy() && !v->getType()->getPointerElementType()->isFirstClassType() ) {
 		  return v;
 		} else {
-		  std::cout << "first-class" << std::endl;
 		  return builder.CreateLoad(v, self.name() );
 		}
 	  }
@@ -363,8 +362,34 @@ struct hm_handler {
 						 return e.apply<code::value>(*this);
 					   });
 
-		// TODO: closures ?!
-		return builder.CreateCall(func, args);
+		code::type ft = func->getType();
+		
+		// regular functions are pointer to function type
+		if( ft->isPointerTy() && !ft->getPointerElementType()->isFirstClassType()) {
+		  std::cout << "function" << std::endl;
+		  return builder.CreateCall(func, args);
+		} else {
+		  std::cout << "closure "  << ft->isPointerTy() << std::endl;
+		  
+		  // this is a closure
+		  using namespace llvm;
+
+		  code::value tmp = builder.CreateAlloca(func->getType());
+		  builder.CreateStore(func, tmp);
+
+		  ConstantInt* const_int32_9 = ConstantInt::get(getGlobalContext(), APInt(32, StringRef("1"), 10));
+		  ConstantInt* const_int32_10 = ConstantInt::get(getGlobalContext(), APInt(32, StringRef("0"), 10));
+
+		  code::value proc = builder.CreateInBoundsGEP(tmp, { const_int32_10, const_int32_10  } );
+		  code::value proc_load = builder.CreateLoad(proc);
+
+		  code::value data = builder.CreateInBoundsGEP(tmp, { const_int32_10, const_int32_9 } );
+		  code::value data_load = builder.CreateLoad(data);
+
+		  args.insert(args.begin(), data_load);
+		  return builder.CreateCall(proc_load, args);
+		}
+
 	  }
 	  
 	  template<class T>
@@ -569,12 +594,80 @@ struct hm_handler {
 	def_extern("print_real", real >>= io(unit) );
 	def_extern("print_int", integer >>= io(unit) );
 	def_extern("print_bool", boolean >>= io(unit) );
-	def_extern("print_endl", unit >>= io(unit) );			
+	def_extern("print_endl", unit >>= io(unit) );
 
+	def_extern("add_int", integer >>= integer >>= integer );
+	def_extern("sub_int", integer >>= integer >>= integer );	
+	
 	jit->def("print_real", +[](sexpr::real x) { std::cout << x; } );
 	jit->def("print_int", +[](sexpr::integer x) { std::cout << x; } );
 	jit->def("print_bool", +[](sexpr::boolean x) { std::cout << x; } );
-	jit->def("print_endl", +[]() { std::cout << std::endl; } );			
+	jit->def("print_endl", +[]() { std::cout << std::endl; } );
+
+	jit->def("add_int", +[](sexpr::integer x, sexpr::integer y) { return x + y; } );
+	jit->def("sub_int", +[](sexpr::integer x, sexpr::integer y) { return x + y; } );		
+
+
+	{
+
+	  code::struct_type data = llvm::StructType::create(llvm::getGlobalContext(), "data");
+
+	  auto int_t = convert( integer );
+	  data->setBody(  { int_t }, false);
+	  
+	  code::struct_type closure = llvm::StructType::create(llvm::getGlobalContext(), "closure");
+	  
+	  code::func_type code = llvm::FunctionType::get(int_t, {data, int_t}, false);
+	  closure->setBody( { llvm::PointerType::get(code, 0), data}, false);
+
+	  {
+		auto module = codegen{*jit}.make_module("tmp");
+		variables vars{module.get()};
+		
+		code::func func = declare(module.get(), "closure_code", code);
+		using namespace llvm;
+		
+		{
+		  auto block = llvm::BasicBlock::Create(llvm::getGlobalContext(), "entry");
+		  llvm::IRBuilder<> builder(block);
+		  ConstantInt* const_int32_10 = ConstantInt::get(getGlobalContext(), APInt(32, StringRef("0"), 10));
+
+		  std::vector<code::value> args;
+		  
+		  for(auto& a : func->args() ) {
+			args.push_back(&a);
+		  }
+
+		  code::value tmp = builder.CreateAlloca(args[0]->getType());
+		  builder.CreateStore(args[0], tmp);
+
+		  code::value captured = builder.CreateInBoundsGEP(tmp, {const_int32_10, const_int32_10} );
+		  code::value captured_load = builder.CreateLoad(captured);
+
+		  code::value sum = builder.CreateCall( vars.find("add_int"), { captured_load, args[1]} );
+		  
+		  builder.CreateRet( sum );
+		  block->insertInto(func);
+		  
+		}
+		
+		using namespace llvm;
+		auto var = new GlobalVariable(*module,
+									  closure,
+									  false,
+									  GlobalValue::ExternalLinkage,
+									  ConstantStruct::get(closure, {func,  ConstantStruct::get(data, { code::make_constant(2) })}),
+									  "add2");
+
+		module->dump();
+		jit->add( std::move(module) );
+	  }
+	  
+	  global.variable("add2", closure);
+	  ctx["add2"] = mono( integer >>= integer );
+	}
+	
+
 	
 	ctx[ "+" ] = mono( integer >>= integer >>= integer);
 	ctx[ "*" ] = mono( integer >>= integer >>= integer);    
