@@ -385,6 +385,82 @@ struct hm_handler {
 		}
 
 	  }
+
+
+	  struct free_variables {
+		typedef std::set<ast::var> set;
+		set& free;
+		const set& bound;
+		
+		void operator()(const ast::var& self) const {
+		  if(bound.find(self) != bound.end() ) {
+			free.insert(self);
+		  }
+		};
+		
+		void operator()(const ast::app& self) const {
+		  self.func->apply(*this);
+
+		  for(const auto& e : self.args) {
+			e.apply(*this);
+		  }
+		};
+
+		void operator()(const ast::abs& self) const {
+		  set sub_free;
+		  set sub_bound(self.args.begin(), self.args.end());
+
+		  self.body->apply( free_variables{sub_free, sub_bound} );
+
+		  // free += sub_free - bound
+		  std::set_difference(sub_free.begin(), sub_free.end(),
+							  bound.begin(), bound.end(),
+							  std::inserter(free, free.end()));
+		};
+
+		void operator()(const ast::cond& self) const {
+		  self.app().apply(*this);
+		};
+
+		void operator()(const ast::seq& self) const {
+		  self.monad().apply(*this);
+		};
+		
+		
+		template<class T>
+		void operator()(const ast::lit<T>&) const { }
+
+		void operator()(const ast::let& self) const {
+		  throw std::logic_error("unimplemented");
+		}
+		
+	  };
+	  
+
+	  // lambda TODO need type lol
+	  code::value operator()(const ast::abs& self) const {
+
+		// 1 find free variables
+		free_variables::set free, bound;
+		self.body->apply( free_variables{free, bound} );
+		
+		// 2 create data structure, fill w/ free variables
+
+		// so normally here types have been inferred for all unbound
+		// variables so we can ask the context for types
+		// context ctx;
+
+		// TODO need to rework architecture
+		
+		// 3 update vars so that free variables end up accessing
+		// closure data
+		
+
+		
+		// 4 generate code with updated vars
+		
+	  }
+	  
 	  
 	  template<class T>
 	  code::value operator()(const T& ) const {
