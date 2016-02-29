@@ -16,6 +16,8 @@ SOURCES = common.cpp sexpr.cpp  \
 		ast.cpp type.cpp  syntax.cpp hindley_milner.cpp \
 		parse.cpp repl.cpp \
 		code.cpp \
+		jit.cpp \
+# 		builtin.cpp \
 		lisp.cpp \
 		main.cpp
 

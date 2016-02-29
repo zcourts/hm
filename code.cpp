@@ -1,11 +1,8 @@
 #include "code.hpp"
 
 
-#include <llvm/ExecutionEngine/Orc/CompileUtils.h>
-#include <llvm/ExecutionEngine/Orc/LambdaResolver.h>
-#include <llvm/IR/Mangler.h>
-#include <llvm/Support/DynamicLibrary.h>
-#include <llvm/Support/TargetSelect.h>
+
+
 
 
 #include <iostream>
@@ -37,85 +34,55 @@ namespace code {
   }
 
 
-  void jit::init() {
-	llvm::InitializeNativeTarget();
-	llvm::InitializeNativeTargetAsmPrinter();
-	llvm::InitializeNativeTargetAsmParser();
-  }
-
-  jit::jit()
-	: target(llvm::EngineBuilder().selectTarget()),
-	  layout(target->createDataLayout()), // if this fails, you need to jit::init() once first
-	  compile(link, llvm::orc::SimpleCompiler(*target))
-  {
-	llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
-  }
-
-
-  template<class T>
-  static std::vector<T> make_set(T t) {
-	std::vector<T> res;
-	res.push_back(std::move(t));
-	return res;
-  }
-
-
-  jit::symbol jit::find_symbol_mangled(const std::string& name) {
-
-	// search for symbols in reverse
-	for (auto h : make_range(modules.rbegin(), modules.rend()))
-	  // TODO why is this not const ?
-      if (auto sym = compile.findSymbolIn(h, name, true)) {
-        return sym;
-	  }
-	
-    // If we can't find the symbol in the JIT, try looking in the host
-    // process.
-    if (auto addr = RTDyldMemoryManager::getSymbolAddressInProcess(name))
-      return {addr, JITSymbolFlags::Exported};
-
-    return nullptr;
-  }
  
+
+
+  globals& globals::variable(const std::string& name, code::type type, bool is_constant) {
+	table[name] = [name, type, is_constant](llvm::Module* module) -> code::value {
+	  // TODO assert type 
+	  // try module first
+	  code::value res = module->getGlobalVariable(name);
+	  if(res) return res;
+	  
+	  // declare variable
+	  return new llvm::GlobalVariable(*module,
+									  type, 
+									  is_constant,
+									  llvm::GlobalValue::AvailableExternallyLinkage,
+									  0,
+									  name);
+	};
+	return *this;
+  }
+
+
+  globals& globals::function(const std::string& name, code::func_type type) {
+
+	table[name] = [name, type](llvm::Module* module) -> code::value {
+	  // TODO assert type
+	  // try module first
+	  code::func res = module->getFunction(name);
+	  if(res) return res;
+	
+	  return llvm::Function::Create(type, llvm::Function::ExternalLinkage, name, module);
+	};
+
+	return *this;
+  }
+
+
+  // get (declare if needed) global variable from a module
+  code::value globals::get(llvm::Module* module, const std::string& name) const {
+	auto it = table.find(name);
+	
+	if( it == table.end() ) {
+	  throw std::runtime_error("unknown global: " + name);
+	}
+	
+	return it->second(module);
+  }
   
-  jit::module_handle jit::add(std::unique_ptr<llvm::Module> module) {
-	auto resolver = orc::createLambdaResolver([&](const std::string& name) {
-		std::cerr << "jit resolver: " << name << std::endl;
-		
-		if (auto sym = find_symbol_mangled(name)) {
-		  return RuntimeDyld::SymbolInfo(sym.getAddress(), sym.getFlags());
-		}
-		return RuntimeDyld::SymbolInfo(nullptr);
-	  }, [](const std::string &) { return nullptr; });
+  
 
-    auto res = compile.addModuleSet( make_set(std::move(module)),
-									make_unique<SectionMemoryManager>(),
-									std::move(resolver));
-
-    modules.push_back(res);
-    return res;
-  }
-
-
-  void jit::remove(module_handle m) {
-    modules.erase(std::find(modules.begin(), modules.end(), m));
-    compile.removeModuleSet(m);
-  }
-
-  jit::symbol jit::find(const std::string& name) {
-    return find_symbol_mangled(mangle(name));
-  }
-
- 
-
-  std::string jit::mangle(const std::string& name) const {
-    std::string res;
-
-    {
-      raw_string_ostream stream(res);
-      Mangler::getNameWithPrefix(stream, name, layout);
-    }
-	
-    return res;
-  }
+  
 }

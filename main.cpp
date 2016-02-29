@@ -16,6 +16,8 @@
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Transforms/Scalar.h"
 
+#include "jit.hpp"
+
 
 struct sexpr_parser {
   std::function< void (const sexpr::list& prog ) > handler;
@@ -37,14 +39,30 @@ struct sexpr_parser {
 };
 
 
-
 static type::mono cstring = type::traits<const char*>::type();
 
+static code::type convert(type::mono t);
+static std::vector<code::type> collect(code::type& ret, const type::mono& t, std::vector<code::type>&& args = {}) {
+  if(t.is<type::app>() && t.as<type::app>()->func == type::func) {
+	// function type
+	type::app app = t.as<type::app>();
+	
+	args.push_back( convert(app->args[0]) );
+	return collect(ret, app->args[1], std::move(args));
+  } else {
+	// this is return type;
+	ret = convert(t);
+	return args;
+  }
+}
 
+
+// TODO expose table so that we can create new types ?
 static code::type convert(type::mono t) {
   static std::map<type::mono, code::type> table = {
-	{type::real,  code::make_type<double>()}, 
-	{type::integer,  code::make_type< llvm::types::i<64> >()},
+	{type::unit, code::make_type< void >() },
+	{type::real,  code::make_type<sexpr::real>()},
+	{type::integer,  code::make_type< llvm::types::i<64> >()}, // 	TODO auto bitlength ?
 	{type::boolean,  code::make_type< llvm::types::i<2> > ()},
 	{cstring, code::make_type<const char*>()} 
   };
@@ -52,66 +70,30 @@ static code::type convert(type::mono t) {
   auto it = table.find(t);
   if( it != table.end() ) return it->second;
 
+  // TODO this can not be used for closures :-/
+
+  if(t.is<type::app>()) {
+	auto& self = t.as<type::app>();
+
+	// ->
+	if(self->func == type::func ) {
+	  code::type ret;
+	  auto args = collect(ret, t);
+
+	  return llvm::FunctionType::get(ret, args, false);
+	}
+
+	// io
+	if(self->func == type::io ) {
+	  return convert(self->args[0]);
+	}
+	
+  }
   throw std::runtime_error("type conversion unimplemented");
 }
 
 
-static class global_type {
-
-  // get or declare a global from/in a module
-  typedef std::function< code::value (llvm::Module* ) > declarator_type;
-
-  // id -> declarator
-  std::map<std::string, declarator_type> table;
-
-public:
-
-  // declare variable
-  void variable(const std::string& name, code::type type, bool is_constant = false) {
-	table[name] = [name, type, is_constant](llvm::Module* module) -> code::value {
-	  // TODO assert type 
-	  // try module first
-	  code::value res = module->getGlobalVariable(name);
-	  if(res) return res;
-	  
-	  // declare variable
-	  return new llvm::GlobalVariable(*module,
-									  type, 
-									  is_constant,
-									  llvm::GlobalValue::AvailableExternallyLinkage,
-									  0,
-									  name);
-	};
-  }
-
-
-  void function(const std::string& name, code::func_type type) {
-
-	table[name] = [name, type](llvm::Module* module) -> code::value {
-	  // TODO assert type
-	  // try module first
-	  code::func res = module->getFunction(name);
-	  if(res) return res;
-	
-	  return llvm::Function::Create(type, llvm::Function::ExternalLinkage, name, module);
-	};
-  }
-
-
-  // get (declare if needed) global variable from a module
-  code::value get(llvm::Module* module, const std::string& name) const {
-	auto it = table.find(name);
-	
-	if( it == table.end() ) {
-	  throw std::runtime_error("unknown global: " + name);
-	}
-	
-	return it->second(module);
-  }
-  
-  
-} global;
-
+static code::globals global;
 
 // TODO this is a value store
 struct variables {
@@ -156,19 +138,6 @@ struct variables {
 };
 
 
-static std::vector<code::type> collect(code::type& ret, const type::mono& t, std::vector<code::type>&& args = {}) {
-  if(t.is<type::app>() && t.as<type::app>()->func == type::func) {
-	// function type
-	type::app app = t.as<type::app>();
-	
-	args.push_back( convert(app->args[0]) );
-	return collect(ret, app->args[1], std::move(args));
-  } else {
-	// this is return type;
-	ret = convert(t);
-	return args;
-  }
-}
 
 static code::func declare(llvm::Module* module, const std::string& name, code::func_type ft) {
 
@@ -186,7 +155,7 @@ struct hm_handler {
   std::shared_ptr<llvm::Module> module;
   std::shared_ptr<llvm::IRBuilder<>> builder;
 
-  std::shared_ptr<code::jit> jit;
+  std::shared_ptr<::jit> jit;
   
   mutable context ctx;
   mutable union_find<type::mono> types;
@@ -301,7 +270,7 @@ struct hm_handler {
 
   struct codegen {
 
-	code::jit& jit;
+	::jit& jit;
 	const context& ctx;
 	
 	template<class T>
@@ -321,32 +290,25 @@ struct hm_handler {
 
 	  variables vars{module.get()};
 
-	  code::value printf = vars.find("printf");	  
-	  
 	  static std::map<type::mono, const char*> format = {
-		{ type::integer, "%d" },
-		{ type::real, "%f" },
-		{ type::boolean, "%i" }
+		{ type::integer, "print_int" },
+		{ type::real, "print_real" },
+		{ type::boolean, "print_bool" }
 	  };
-
 	  
-	  code::value fmt = nullptr;
-
+	  code::value print = nullptr;
+	  
 	  auto it = format.find(p.as<type::mono>());
 	  if(it != format.end()) {
-		fmt = new llvm::GlobalVariable(*module,
-									   code::make_type<const char*>(),
-									   true,
-									   llvm::GlobalValue::PrivateLinkage,
-									   code::make_constant(it->second),
-									   "fmt");
+		print = vars.find(it->second);
 	  }
 	  
 	  anon_expr(module.get(), [&](llvm::IRBuilder<>& builder) {
+		  // compute expression
 		  code::value res = self.apply<code::value>(codegen_expr{builder, vars});
-		  assert(res->getType() == convert(p.as<type::mono>()));
+		  // assert(res->getType() == convert(p.as<type::mono>()));
 		  
-		  if( fmt ) builder.CreateCall(printf, {fmt, res });
+		  if( print ) builder.CreateCall(print, {res});
 		  // return res;
 		});
 	  
@@ -388,7 +350,14 @@ struct hm_handler {
 	  }
 
 	  code::value operator()(const ast::var& self) const {
-		return builder.CreateLoad( vars.find(self), self.name() );
+		code::value v = vars.find(self);
+
+		if( v->getType()->isPointerTy() && !v->getType()->getPointerElementType()->isFirstClassType() ) {
+		  return v;
+		} else {
+		  std::cout << "first-class" << std::endl;
+		  return builder.CreateLoad(v, self.name() );
+		}
 	  }
 	  
 
@@ -591,8 +560,8 @@ struct hm_handler {
 	  module = std::make_shared<llvm::Module>("hm", context);
 	  builder = std::make_shared<llvm::IRBuilder<>>(context);
 
-	  code::jit::init();
-	  jit.reset( new code::jit );
+	  ::jit::init();
+	  jit.reset( new ::jit );
 	}
 
 	{
@@ -609,6 +578,22 @@ struct hm_handler {
 	// return;
 	
 	using namespace type;
+
+	auto def_extern = [&](const std::string& name, type::mono t) {
+	  ctx[name] = t;
+	  global.function( name, static_cast<code::func_type>(convert(t)) );
+	};
+
+	def_extern("print_real", real >>= io(unit) );
+	def_extern("print_int", integer >>= io(unit) );
+	def_extern("print_bool", boolean >>= io(unit) );
+	def_extern("print_endl", unit >>= io(unit) );			
+
+	jit->def("print_real", +[](sexpr::real x) { std::cout << x; } );
+	jit->def("print_int", +[](sexpr::integer x) { std::cout << x; } );
+	jit->def("print_bool", +[](sexpr::boolean x) { std::cout << x; } );
+	jit->def("print_endl", +[]() { std::cout << std::endl; } );			
+	
 	ctx[ "+" ] = mono( integer >>= integer >>= integer);
 	ctx[ "*" ] = mono( integer >>= integer >>= integer);    
 	ctx[ "-" ] = mono( integer >>= integer >>= integer);
@@ -659,10 +644,10 @@ struct hm_handler {
     }
 
 
-	{
-      var a;
-      ctx["print"] = generalize(ctx, a >>= io(unit) );
-    }
+	// {
+    //   var a;
+    //   ctx["print"] = generalize(ctx, a >>= io(unit) );
+    // }
 	    
   }
 

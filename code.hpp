@@ -8,9 +8,6 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/IR/TypeBuilder.h>
 
-// jit
-#include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
-#include <llvm/ExecutionEngine/Orc/IRCompileLayer.h>
 
 #include "ast.hpp"
 
@@ -30,55 +27,41 @@ namespace code {
   constant make_constant(const int& );
   constant make_constant(const bool& b);
   constant make_constant(const char* c);
-  
+
+  // types
   template<class T>
   inline auto make_type() -> decltype(llvm::TypeBuilder<T, false>::get(llvm::getGlobalContext())) {
 	return llvm::TypeBuilder<T, false>::get(llvm::getGlobalContext());
   }
-
   
   
   // local variables
   var local(func f, const std::string& name, type t);
 
-  // jit
-  class jit {
+  
+  
+ 
 
-	using link_type = llvm::orc::ObjectLinkingLayer<>;
-	using compile_type = llvm::orc::IRCompileLayer<link_type>;
-	
+  class globals {
+
+	// get or declare a global from/in a module
+	typedef std::function< code::value (llvm::Module* ) > declarator_type;
+
+	// id -> declarator
+	std::map<std::string, declarator_type> table;
+
   public:
-	jit();
-	
-	using module_handle = compile_type::ModuleSetHandleT;
 
-	using symbol = llvm::orc::JITSymbol;
-	
-	module_handle add(std::unique_ptr<llvm::Module> module);
-	void remove(module_handle m);
-	
-	symbol find(const std::string& name);
+	// declare global variable
+	globals& variable(const std::string& name, code::type type, bool is_constant = false);
 
-	llvm::DataLayout data_layout() const {
-	  return target->createDataLayout();
-	}
+	// declare global function
+	globals& function(const std::string& name, code::func_type type);
 
-	static void init();
-	
-  private:
 
-	std::string mangle(const std::string& name) const;
-	symbol find_symbol_mangled(const std::string& name);
-	
-	std::unique_ptr<llvm::TargetMachine> target;
-  public:
-	const llvm::DataLayout layout;
-  private:
-	
-	link_type link;
-	compile_type compile;
-
-	std::vector<module_handle> modules;
+	// get (declare if needed) global variable from a module
+	code::value get(llvm::Module* module, const std::string& name) const;
+  
   };
   
 }
