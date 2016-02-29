@@ -377,17 +377,11 @@ struct hm_handler {
 		  code::value tmp = builder.CreateAlloca(func->getType());
 		  builder.CreateStore(func, tmp);
 
-		  ConstantInt* const_int32_9 = ConstantInt::get(getGlobalContext(), APInt(32, StringRef("1"), 10));
-		  ConstantInt* const_int32_10 = ConstantInt::get(getGlobalContext(), APInt(32, StringRef("0"), 10));
+		  code::value proc = code::get_element<0, 0>(builder, tmp);
+		  code::value data = code::get_element<0, 1>(builder, tmp);
 
-		  code::value proc = builder.CreateInBoundsGEP(tmp, { const_int32_10, const_int32_10  } );
-		  code::value proc_load = builder.CreateLoad(proc);
-
-		  code::value data = builder.CreateInBoundsGEP(tmp, { const_int32_10, const_int32_9 } );
-		  code::value data_load = builder.CreateLoad(data);
-
-		  args.insert(args.begin(), data_load);
-		  return builder.CreateCall(proc_load, args);
+		  args.insert(args.begin(), data);
+		  return builder.CreateCall(proc, args);
 		}
 
 	  }
@@ -641,10 +635,8 @@ struct hm_handler {
 		  code::value tmp = builder.CreateAlloca(args[0]->getType());
 		  builder.CreateStore(args[0], tmp);
 
-		  code::value captured = builder.CreateInBoundsGEP(tmp, {const_int32_10, const_int32_10} );
-		  code::value captured_load = builder.CreateLoad(captured);
-
-		  code::value sum = builder.CreateCall( vars.find("add_int"), { captured_load, args[1]} );
+		  code::value captured = code::get_element<0, 0>(builder, tmp);
+		  code::value sum = builder.CreateCall( vars.find("add_int"), { captured, args[1]} );
 		  
 		  builder.CreateRet( sum );
 		  block->insertInto(func);

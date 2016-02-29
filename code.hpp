@@ -40,6 +40,17 @@ namespace code {
   var local(func f, const std::string& name, type t);
 
   
+  // elements
+  template<int ... I>
+  code::value get_element_ptr(llvm::IRBuilder<>& builder, value x) {
+	return builder.CreateInBoundsGEP(x, {make_constant(I)...});
+  };
+
+
+  template<int ... I>
+  code::value get_element(llvm::IRBuilder<>& builder, value x) {
+	return builder.CreateLoad( get_element_ptr<I...>(builder, x));
+  };
   
  
   class globals {
