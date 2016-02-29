@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 
-
 class symbol {
   const char* string = nullptr;
 public:
@@ -33,17 +32,17 @@ static inline ref<T> shared(Args&& ... x) {
 template<class T>
 using vec = std::vector<T>;
 
-namespace std {
+// namespace std {
 
-  template<class T>
-  struct hash;
+//   template<class T>
+//   struct hash;
+  
+//   template<>
+//   struct hash< ::symbol > {
 
-  template<>
-  struct hash< symbol > {
-
-	std::size_t operator()(const symbol& s) const;
+// 	std::size_t operator()(const symbol& s) const;
 	
-  };
-}
+//   };
+// }
 
 #endif

@@ -3,14 +3,12 @@
 
 #include "hindley_milner.hpp"
 #include "repl.hpp"
-#include "lisp.hpp"
 #include "parse.hpp"
 #include "syntax.hpp"
 
 #include "code.hpp"
 
 #include <fstream>
-#include <boost/program_options.hpp>
 
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Analysis/Passes.h"
@@ -152,9 +150,6 @@ static std::map<std::string, code::func_type> prototype;
 
 struct hm_handler {
 
-  std::shared_ptr<llvm::Module> module;
-  std::shared_ptr<llvm::IRBuilder<>> builder;
-
   std::shared_ptr<::jit> jit;
   
   mutable context ctx;
@@ -271,7 +266,6 @@ struct hm_handler {
   struct codegen {
 
 	::jit& jit;
-	const context& ctx;
 	
 	template<class T>
 	void operator()(const T&, const type::poly& p) const {
@@ -530,8 +524,9 @@ struct hm_handler {
 		const ast::node e = transform( s );
 		type::poly p = e.apply<type::poly>(type_check(), types, ctx);
 
-		e.apply( codegen{*jit, ctx}, p);
-		
+		{
+		  e.apply( codegen{*jit}, p);
+		}
 	  }
 	}	
 	catch( syntax_error& e ) {
@@ -556,24 +551,12 @@ struct hm_handler {
   hm_handler() {
 
 	{
-	  llvm::LLVMContext& context = llvm::getGlobalContext();
-	  module = std::make_shared<llvm::Module>("hm", context);
-	  builder = std::make_shared<llvm::IRBuilder<>>(context);
-
 	  ::jit::init();
 	  jit.reset( new ::jit );
 	}
 
-	{
-	  // expose c functions
-	  auto module = codegen{*jit, ctx}.make_module("libc");
-
-	  global.function("printf", code::make_type< void (const char*, ...) >());
-	  
-	  module->dump();
-	  
-	  jit->add(std::move(module));
-	}
+	// 
+	global.function("printf", code::make_type< void (const char*, ...) >());
 
 	// return;
 	
@@ -656,55 +639,17 @@ struct hm_handler {
 
   
 
-namespace po = boost::program_options;
-po::variables_map parse_options(int ac, const char* av[]) {
-  
-  po::options_description desc("options");
-
-  desc.add_options()
-    ("help,h", "produce help message")
-	("input", po::value<std::string>(), "filename")
-	;
-
-  po::positional_options_description p;
-  p.add("input", 1);
-  
-  po::variables_map vm;
-
-  try{
-	po::parsed_options parsed = po::command_line_parser(ac, av).
-	  options(desc).positional(p).run();
-	
-	po::store(parsed, vm);
-  } catch (po::error const& e) {
-	std::cerr << e.what() << '\n';
-	std::exit(1);
-  }
-
-  po::notify(vm);
-  if (vm.count("help")) {
-	std::cout << desc << "\n";
-	std::exit(1);
-  }
-  
-  return vm;
-}
-
-
 
 int main(int argc, const char* argv[] ) {
 
   std::cout << std::boolalpha;
   std::cerr << std::boolalpha;  
 
-  vec<std::string> remaining;
-  auto vm = parse_options(argc, argv);
-  
   sexpr_parser parser{ hm_handler{} };
   // parser.handler = hm_handler{};
 
-  if( vm.count("input") ) {
-	std::ifstream file( vm["input"].as<std::string>().c_str() );
+  if( argc > 1 ) {
+	std::ifstream file(  argv[1] );
 	if( !file ) throw std::runtime_error("file not found");
 	
 	parser( file );

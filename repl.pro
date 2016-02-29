@@ -1,9 +1,4 @@
 
-QMAKE_CXXFLAGS += -std=c++11 # -I/usr/include/libcxxabi -stdlib=libc++
-
-
-CONFIG -= qt app_bundle
-CONFIG += warn_on
 
 # CONFIG += link_pkgconfig
 LLVM_CONFIG = llvm-config-3.8
@@ -18,9 +13,9 @@ SOURCES = common.cpp sexpr.cpp  \
 		code.cpp \
 		jit.cpp \
 # 		builtin.cpp \
-		lisp.cpp \
+# 		lisp.cpp \
 		main.cpp
 
-LIBS += -lreadline -lboost_program_options -lstdc++
+LIBS += -lreadline # -lstdc++
 
 

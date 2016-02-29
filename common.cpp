@@ -3,6 +3,7 @@
 #include <set>
 #include <ostream>
 #include <functional>
+#include <string>
 
 static std::set<std::string> table;
 
@@ -14,8 +15,8 @@ std::ostream& operator << (std::ostream& out, const symbol& self) {
 }
 
 
-namespace std {
-  std::size_t hash< symbol >::operator()(const symbol& s) const {
-	return std::hash<const char*>{}(s.name());
-  }
-}
+// namespace std {
+//   std::size_t hash< symbol >::operator()(const symbol& s) const {
+// 	return std::hash<const char*>{}(s.name());
+//   }
+// }
