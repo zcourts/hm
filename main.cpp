@@ -275,7 +275,8 @@ struct hm_handler {
 
 	// toplevel expression
 	void operator()(const ast::expr& self, const type::poly& p) const {
-
+	  std::runtime_error derp("derp");
+	  
 	  auto module = make_module("tmp");
 
 	  if( p.is<type::scheme>() ){
@@ -310,19 +311,14 @@ struct hm_handler {
 
 	  // eval
 
-	  auto handle = jit.add(std::move(module));
-	  auto sym = jit.find("__anon_expr");
-	  if(!sym) throw std::logic_error("symbol not found");
-	  
-	  using ptr_type = void (*)();
-	  auto ptr = (ptr_type)(sym.getAddress());
-	  
-	  std::cout << "eval: ";
-	  ptr();
-	  std::cout << std::endl;
-	  
-	  jit.remove(handle);
-	  
+	  {
+		auto handle = jit.add(std::move(module));
+		
+		std::cout << "eval: ";
+		jit.exec("__anon_expr");
+		std::cout << std::endl;
+		// jit.remove(handle);
+	  }	  
 	}
 
 
@@ -491,16 +487,16 @@ struct hm_handler {
 		
 	
 		module->dump();
-		
-		auto handle = jit.add(std::move(module));
-		auto sym = jit.find("__anon_expr");
-		if(!sym) throw std::logic_error("symbol not found");
-		using ptr_type = void (*)();
-		
-		auto ptr = (ptr_type)(sym.getAddress());
-		ptr();
-		
-		jit.remove(handle);
+
+		{
+		  auto handle = jit.add(std::move(module));
+
+		  jit.exec("__anon_expr");
+		  
+		  // FIXME: causes segfault everytime an exception is
+		  // thrown :-/
+		  // jit.remove(handle);
+		}
 	  }
 
 
@@ -553,8 +549,11 @@ struct hm_handler {
 	{
 	  ::jit::init();
 	  jit.reset( new ::jit );
+
+	  jit->add( codegen{*jit}.make_module("global") );
 	}
 
+	
 	// 
 	global.function("printf", code::make_type< void (const char*, ...) >());
 

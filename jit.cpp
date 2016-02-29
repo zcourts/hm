@@ -38,7 +38,7 @@ jit::symbol jit::find_symbol_mangled(const std::string& name) {
   // search for symbols in reverse
   for (auto h : llvm::make_range(modules.rbegin(), modules.rend())) {
 	// TODO why is this not const ?
-	if (auto sym = mapping.findSymbolIn(h, name, true)) {
+	if (auto sym = compile.findSymbolIn(h, name, true)) {
 	  return sym;
 	}
   }
@@ -69,7 +69,7 @@ jit::module_handle jit::add(std::unique_ptr<llvm::Module> module) {
 	  return RuntimeDyld::SymbolInfo(nullptr);
 	}, [](const std::string &) { return nullptr; });
 
-  auto res = mapping.addModuleSet( make_set(std::move(module)),
+  auto res = compile.addModuleSet( make_set(std::move(module)),
 								   make_unique<SectionMemoryManager>(),
 								   std::move(resolver));
 
@@ -79,8 +79,12 @@ jit::module_handle jit::add(std::unique_ptr<llvm::Module> module) {
 
 
 void jit::remove(module_handle m) {
-  modules.erase(std::find(modules.begin(), modules.end(), m));
-  mapping.removeModuleSet(m);
+  
+  auto it = std::find(modules.begin(), modules.end(), m);
+  if(it == modules.end() ) throw std::runtime_error("unknown module");
+  
+  modules.erase(it);
+  compile.removeModuleSet(m);
 }
 
 jit::symbol jit::find(const std::string& name) {

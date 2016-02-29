@@ -1,0 +1,15 @@
+QMAKE_CXXFLAGS += -std=c++11 
+
+CONFIG -= qt app_bundle
+CONFIG += warn_on
+
+# customization
+include(config.pri) {
+	# message('reading config.pri')
+}
+
+
+release {
+	DEFINES += NDEBUG
+}
+
